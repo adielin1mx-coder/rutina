@@ -1,14 +1,14 @@
 import { DAYS, type Day, type DayId } from './rutina';
 
 /** Índice de JS: 0 = domingo … 6 = sábado. */
-export const WEEK: { short: string; name: string; slug: string; day: DayId | null; label: string }[] = [
-  { short: 'D', name: 'Domingo', slug: 'domingo', day: null, label: 'Descanso' },
-  { short: 'L', name: 'Lunes', slug: 'lunes', day: 'empuje', label: 'Empuje' },
-  { short: 'M', name: 'Martes', slug: 'martes', day: 'jalon', label: 'Jalón' },
-  { short: 'X', name: 'Miércoles', slug: 'miercoles', day: 'pierna-hipertrofia', label: 'Pierna hipertrofia' },
-  { short: 'J', name: 'Jueves', slug: 'jueves', day: 'torso', label: 'Torso fuerza' },
-  { short: 'V', name: 'Viernes', slug: 'viernes', day: 'pierna-fuerza', label: 'Pierna fuerza' },
-  { short: 'S', name: 'Sábado', slug: 'sabado', day: null, label: 'Descanso' },
+export const WEEK: { short: string; name: string; slug: string; day: DayId | null; label: string; tag: string }[] = [
+  { short: 'D', name: 'Domingo', slug: 'domingo', day: null, label: 'Descanso', tag: 'Descanso' },
+  { short: 'L', name: 'Lunes', slug: 'lunes', day: 'empuje', label: 'Empuje', tag: 'Empuje' },
+  { short: 'M', name: 'Martes', slug: 'martes', day: 'jalon', label: 'Jalón', tag: 'Jalón' },
+  { short: 'X', name: 'Miércoles', slug: 'miercoles', day: 'pierna-hipertrofia', label: 'Pierna hipertrofia', tag: 'Pierna' },
+  { short: 'J', name: 'Jueves', slug: 'jueves', day: 'torso', label: 'Torso fuerza', tag: 'Torso' },
+  { short: 'V', name: 'Viernes', slug: 'viernes', day: 'pierna-fuerza', label: 'Pierna fuerza', tag: 'Pierna' },
+  { short: 'S', name: 'Sábado', slug: 'sabado', day: null, label: 'Descanso', tag: 'Descanso' },
 ];
 
 /** Orden de lunes a domingo para mostrar la semana. */

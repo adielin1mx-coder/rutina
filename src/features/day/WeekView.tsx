@@ -4,6 +4,7 @@ import { dayFor, nextSession, WEEK } from '@/data/schedule';
 import type { Block } from '@/hooks/useBlock';
 import { ExerciseCard } from './ExerciseCard';
 import { WeekStrip } from './WeekStrip';
+import { TYPE_LABEL, typeOf, typeVars } from '@/lib/theme';
 
 export function WeekView({ today, selected, onSelect, block }: { today: number; selected: number; onSelect: (wd: number) => void; block: Block }) {
   const day = dayFor(selected);
@@ -29,9 +30,14 @@ export function WeekView({ today, selected, onSelect, block }: { today: number; 
           transition={{ duration: 0.25 }}
           className="space-y-3"
         >
-          <div className="flex items-end gap-4 border-b-2 border-foreground pb-3">
-            <span className="font-display text-[clamp(64px,15vw,104px)] leading-[0.78] font-black text-neon">{w.short}</span>
-            <div>
+          <div style={typeVars(day ? typeOf(day) : null)} className="flex items-end gap-4 border-b-2 border-(--c) pb-3">
+            <span className="font-display text-[clamp(64px,15vw,104px)] leading-[0.78] font-black text-(--c)">{w.short}</span>
+            <div className="min-w-0">
+              {day && (
+                <span className="mb-1 inline-block rounded-md bg-(--c) px-2 py-0.5 text-[11px] font-black tracking-wider text-(--c-ink) uppercase">
+                  {TYPE_LABEL[typeOf(day)].long}
+                </span>
+              )}
               <h2 className="font-display text-[clamp(34px,7vw,52px)] leading-none font-black uppercase">
                 {w.name} · {day ? day.title : 'Descanso'}
               </h2>

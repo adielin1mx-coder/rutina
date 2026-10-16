@@ -8,6 +8,7 @@ import { LoggerContext } from '@/features/log/logger-context';
 import { SetLogger } from '@/features/log/SetLogger';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { TodayView } from '@/features/today/TodayView';
+import { shouldWelcome, WelcomeSplash } from '@/features/welcome/WelcomeSplash';
 import { useBlock } from '@/hooks/useBlock';
 import { useToday } from '@/hooks/useToday';
 import { BottomDock } from '@/layout/BottomDock';
@@ -16,6 +17,9 @@ import { VIEWS, type ViewId } from '@/layout/views';
 
 // Recharts pesa: la vista de progreso se descarga solo al abrirla.
 const ProgressView = lazy(() => import('@/features/log/ProgressView').then((m) => ({ default: m.ProgressView })));
+
+// Se decide una sola vez al cargar (fuera de React para que StrictMode no lo consuma dos veces).
+const WELCOME = shouldWelcome();
 
 const VIEW_KEY = 'rutina.view';
 const readView = (): ViewId => {
@@ -56,6 +60,9 @@ export default function App() {
     [setView],
   );
 
+  const [welcome, setWelcome] = useState(WELCOME);
+  const endWelcome = useCallback(() => setWelcome(false), []);
+
   const logger = useMemo(() => ({ open: setLogging }), []);
 
   return (
@@ -85,6 +92,7 @@ export default function App() {
       <BottomDock view={view} onChange={setView} />
       <SetLogger ex={logging} block={block} today={today} onClose={() => setLogging(null)} />
       <Toaster />
+      {welcome && <WelcomeSplash today={today} onDone={endWelcome} />}
     </LoggerContext.Provider>
   );
 }

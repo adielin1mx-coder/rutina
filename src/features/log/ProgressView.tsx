@@ -12,6 +12,7 @@ import { AdviceBadge } from './AdviceBadge';
 import { HistoryChart } from './HistoryChart';
 import { useLogger } from './logger-context';
 import { BlockBanner } from '@/features/today/TodayView';
+import { typeOf, typeVars } from '@/lib/theme';
 
 export function ProgressView({ block }: { block: Block }) {
   const sessions = useStore((s) => s.sessions);
@@ -86,9 +87,9 @@ export function ProgressView({ block }: { block: Block }) {
       {WEEK_ORDER.filter((wd) => WEEK[wd].day).map((wd) => {
         const day = DAYS[WEEK[wd].day!];
         return (
-          <section key={wd}>
+          <section key={wd} style={typeVars(typeOf(day))}>
             <h2 className="font-display mb-2 text-3xl font-black uppercase">
-              <span className="text-neon">{WEEK[wd].name}</span> · {day.title}
+              <span className="text-(--c)">{WEEK[wd].name}</span> · {day.title}
             </h2>
             <ul className="divide-y divide-border overflow-hidden rounded-2xl border bg-surface">
               {day.exercises.map((ex) => {

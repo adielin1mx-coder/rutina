@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Download, ExternalLink, Link2Off, RefreshCw, Upload } from 'lucide-react';
+import { Check, Download, ExternalLink, Link2Off, RefreshCw, RotateCcw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { pull, saveSession, setSyncConfig, useStore } from '@/lib/store';
 import type { Session } from '@/lib/progression';
+import { DEFAULT_PREFS, inkOn, PRESETS, setPrefs, TYPE_LABEL, typeVars, usePrefs, type DayType } from '@/lib/theme';
 
 export function SettingsView() {
   const sync = useStore((s) => s.sync);
@@ -53,6 +54,8 @@ export function SettingsView() {
           Tus pesos se guardan en este dispositivo y, si conectas tu Google Sheet, también en tu Drive, sincronizados entre el celular y la computadora.
         </p>
       </header>
+
+      <Appearance />
 
       <section className="grain space-y-4 rounded-2xl border bg-surface p-5">
         <h2 className="font-display text-3xl font-black uppercase">Google Sheet</h2>
@@ -137,5 +140,80 @@ export function SettingsView() {
         </div>
       </section>
     </div>
+  );
+}
+
+function Appearance() {
+  const prefs = usePrefs();
+  const [name, setName] = useState(prefs.name);
+  const changed = prefs.hyp !== DEFAULT_PREFS.hyp || prefs.str !== DEFAULT_PREFS.str;
+
+  return (
+    <section className="grain space-y-5 rounded-2xl border bg-surface p-5">
+      <h2 className="font-display text-3xl font-black uppercase">Apariencia</h2>
+
+      <label className="block">
+        <span className="text-[12.5px] font-semibold tracking-wide text-muted-foreground uppercase">Tu nombre</span>
+        <input
+          value={name}
+          maxLength={24}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => setPrefs({ name: name.trim() || DEFAULT_PREFS.name })}
+          className="mt-1 h-11 w-full rounded-xl border border-input bg-background px-3 text-[14px] outline-none focus:border-neon"
+        />
+        <span className="mt-1 block text-[12.5px] text-muted-foreground">Aparece en la bienvenida: “Bienvenido, {prefs.name}”.</span>
+      </label>
+
+      {(['hyp', 'str'] as DayType[]).map((t) => (
+        <div key={t}>
+          <p className="text-[12.5px] font-semibold tracking-wide text-muted-foreground uppercase">
+            Días de {TYPE_LABEL[t].long.toLowerCase()} · {t === 'hyp' ? 'L, M, X' : 'J, V'}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {PRESETS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setPrefs({ [t]: c })}
+                aria-label={`Color ${c}`}
+                aria-pressed={prefs[t] === c}
+                className="grid size-9 place-items-center rounded-full border-2 border-transparent transition-transform active:scale-90 aria-pressed:border-foreground"
+                style={{ background: c }}
+              >
+                {prefs[t] === c && <Check className="size-4" style={{ color: inkOn(c) }} strokeWidth={3} />}
+              </button>
+            ))}
+            <label
+              className="relative grid size-9 cursor-pointer place-items-center overflow-hidden rounded-full border-2 border-dashed border-foreground/40 text-[10px] font-bold"
+              title="Color libre"
+            >
+              <span
+                className="absolute inset-1 rounded-full"
+                style={{ background: PRESETS.includes(prefs[t]) ? 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' : prefs[t] }}
+              />
+              <input type="color" value={prefs[t]} onChange={(e) => setPrefs({ [t]: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" />
+            </label>
+          </div>
+        </div>
+      ))}
+
+      <div className="grid grid-cols-2 gap-2">
+        {(['hyp', 'str'] as DayType[]).map((t) => (
+          <div key={t} style={typeVars(t)} className="relative overflow-hidden rounded-xl border border-(--c)/40 bg-surface-2 p-3">
+            <span className="font-display text-3xl leading-none font-black text-(--c)">{t === 'hyp' ? 'L' : 'J'}</span>
+            <span className="ml-2 rounded-md bg-(--c) px-1.5 py-0.5 text-[10.5px] font-black tracking-wider text-(--c-ink) uppercase">{TYPE_LABEL[t].long}</span>
+            <span className="absolute inset-x-0 bottom-0 h-[3px] bg-(--c)" />
+          </div>
+        ))}
+      </div>
+
+      {changed && (
+        <button
+          onClick={() => setPrefs({ hyp: DEFAULT_PREFS.hyp, str: DEFAULT_PREFS.str })}
+          className="inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-[14px] font-semibold text-muted-foreground"
+        >
+          <RotateCcw className="size-4" /> Restablecer colores
+        </button>
+      )}
+    </section>
   );
 }

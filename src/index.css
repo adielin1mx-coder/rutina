@@ -39,6 +39,8 @@
   --color-warn: var(--warn);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-hyp: var(--hyp);
+  --color-str: var(--str);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -59,6 +61,11 @@
   --popover-foreground: #f4f1ef;
   --neon: #ff2d2d;
   --neon-soft: rgb(255 45 45 / 0.14);
+  /* Tipo de día (personalizable en Ajustes) */
+  --hyp: #a855f7;
+  --str: #ff2d2d;
+  --hyp-ink: #ffffff;
+  --str-ink: #ffffff;
   --ok: #3ddc84;
   --warn: #ffb020;
   --primary: #ff2d2d;
@@ -105,7 +112,7 @@
   .font-display { font-family: var(--font-display); }
   .tabular { font-variant-numeric: tabular-nums; }
   .glow { box-shadow: 0 0 0 1px rgb(255 45 45 / 0.5), 0 0 28px -4px rgb(255 45 45 / 0.55); }
-  .text-glow { text-shadow: 0 0 28px rgb(255 45 45 / 0.45); }
+  .text-glow { text-shadow: 0 0 28px color-mix(in srgb, var(--c, var(--neon)) 45%, transparent); }
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6.5rem); }

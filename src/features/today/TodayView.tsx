@@ -11,7 +11,9 @@ import { ExerciseCard } from '@/features/day/ExerciseCard';
 import type { Block } from '@/hooks/useBlock';
 import { isoDate } from '@/lib/date';
 import { useStore } from '@/lib/store';
+import { cn } from '@/lib/utils';
 import { WeekStrip } from '@/features/day/WeekStrip';
+import { TYPE_LABEL, typeOf, typeVars, usePrefs } from '@/lib/theme';
 
 export function TodayView({ today, block, onOpenDay }: { today: Date; block: Block; onOpenDay: (weekday: number) => void }) {
   const wd = today.getDay();
@@ -23,6 +25,8 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
     () => new Set(Object.values(sessions).filter((x) => x.date === date).map((x) => x.exerciseId)),
     [sessions, date],
   );
+  const { name } = usePrefs();
+  const type = day ? typeOf(day) : null;
   const dateLabel = today.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const done = day ? day.exercises.filter((e) => loggedToday.has(e.id)).length : 0;
@@ -30,12 +34,18 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
 
   return (
     <div className="space-y-6">
-      <section className="grain relative overflow-hidden rounded-3xl border bg-surface px-5 pt-6 pb-5 sm:px-7 sm:pt-8">
-        <Spotlight className="from-neon/40 via-neon/10 to-transparent blur-2xl" size={260} />
-        <BorderBeam size={120} duration={9} colorFrom="#ff2d2d" colorTo="#ff8a5c" />
-        <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full border-[44px] border-neon/15" />
+      <section
+        style={typeVars(type)}
+        className={cn('grain relative overflow-hidden rounded-3xl border bg-surface px-5 pt-6 pb-5 sm:px-7 sm:pt-8', type && 'border-(--c)/30')}
+      >
+        <Spotlight className="from-(--c)/40 via-(--c)/10 to-transparent blur-2xl" size={260} />
+        {type && <BorderBeam size={120} duration={9} colorFrom="var(--c)" colorTo="#ffffff" />}
+        <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full border-[44px] border-(--c)/15" />
 
-        <p className="text-[13px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">Hoy · {dateLabel}</p>
+        <p className="text-[15px] font-semibold">
+          Bienvenido, <span className="text-(--c)">{name}</span>
+        </p>
+        <p className="mt-1 text-[12.5px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">Hoy · {dateLabel}</p>
         <TextEffect
           as="h1"
           per="char"
@@ -45,9 +55,12 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
           {day ? day.title : 'Descanso'}
         </TextEffect>
         <p className="mt-3 max-w-[46ch] text-[15.5px] text-foreground/75">
-          {day ? (
+          {day && type ? (
             <>
-              <span className="font-semibold text-neon">{day.heavy ? 'Fuerza' : 'Volumen'}</span> · {day.focus.replace(/^(Fuerza|Hipertrofia)\. /, '')}
+              <span className="mr-1.5 inline-block rounded-md bg-(--c) px-2 py-0.5 align-[2px] text-[11.5px] font-black tracking-wider text-(--c-ink) uppercase">
+                {TYPE_LABEL[type].long}
+              </span>
+              {day.focus.replace(/^(Fuerza|Hipertrofia)\. /, '')}
             </>
           ) : (
             'Recupera: come tus 170 g de proteína y duerme 7–9 horas. El crecimiento pasa hoy.'
@@ -83,7 +96,7 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
             </div>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
               <motion.div
-                className="h-full rounded-full bg-neon shadow-[0_0_12px_var(--neon)]"
+                className="h-full rounded-full bg-(--c) shadow-[0_0_12px_var(--c)]"
                 initial={false}
                 animate={{ width: `${(done / day.exercises.length) * 100}%` }}
                 transition={{ type: 'spring', bounce: 0, duration: 0.6 }}

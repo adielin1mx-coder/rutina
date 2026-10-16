@@ -19,6 +19,7 @@ App personal de entrenamiento: rutina Upper/Lower + PPL de 5 días, registro de 
 - **Registrar:** en cada ejercicio anotas el peso, las reps y el RIR (opcional) por serie, en kg o lb. Los campos se precargan con el peso recomendado.
 - **Progresión (doble progresión):** cuando completas todas las series en el tope del rango, la app sugiere subir entre 2.5 y 5%, redondeado al disco o la mancuerna real. Si fallas el mínimo dos sesiones seguidas, sugiere bajar.
 - **Bloques:** semanas 1–2 de arranque (RIR 1–2), descarga cada 6 semanas y una recomendación de FST-7 por bloque.
+- **Bienvenida y colores:** al abrir la app aparece un saludo animado (anime.js) con la frase del día. En Ajustes › Apariencia eliges el color de los días de hipertrofia (L–X) y de fuerza (J–V) y tu nombre.
 - **Sincronización:** los datos se guardan en el navegador y, opcionalmente, en una Google Sheet de tu Drive.
 
 ## Conectar Google Sheets
@@ -40,9 +41,9 @@ npm test         # pruebas de la lógica de progresión
 npm run deploy   # build + publicar en la rama gh-pages
 ```
 
-Parámetros útiles para revisar: `?dia=lunes` simula otro día, `?vista=progreso` abre una vista y `?registrar=press-banca` abre el registrador.
+Parámetros útiles para revisar: `?dia=lunes` simula otro día, `?vista=progreso` abre una vista y `?registrar=press-banca` abre el registrador y `?bienvenida` fuerza la pantalla de bienvenida.
 
-Stack: Vite, React, TypeScript, Tailwind v4, shadcn/ui, Motion y componentes de Magic UI y Motion Primitives (los mismos que publica 21st.dev).
+Stack: Vite, React, TypeScript, Tailwind v4, shadcn/ui, Motion, anime.js y componentes de Magic UI y Motion Primitives (los mismos que publica 21st.dev).
 
 ---
 
