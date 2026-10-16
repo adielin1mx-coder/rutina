@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { Flame } from 'lucide-react';
-import { DIET, GRIPS, PRIORITIES, RULES, TECHNIQUES, VOLUME } from '@/data/rutina';
+import { GRIPS, PRIORITIES, RULES, TECHNIQUES, VOLUME } from '@/data/rutina';
 import { FST7_PLAN } from '@/lib/progression';
 import { exerciseById, DAYS } from '@/data/rutina';
 import { WEEK } from '@/data/schedule';
@@ -13,7 +13,6 @@ const SECTIONS = [
   ['reglas', 'Reglas'],
   ['prioridades', 'Prioridades'],
   ['fst7', 'FST-7'],
-  ['dieta', 'Dieta'],
 ] as const;
 
 /** Navegación interna por JS (el visor del celular bloquea los enlaces con #). */
@@ -161,35 +160,6 @@ export function GuideView() {
           <li>Nunca en compuestos ni en las hiperextensiones: la fatiga lumbar se acumula con el rumano.</li>
           <li>Las series FST-7 se registran aparte y no cuentan para la recomendación de subir peso.</li>
         </ul>
-      </Section>
-
-      <Section id="dieta" title="Dieta de volumen limpio" intro={DIET.intro}>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {DIET.macros.map((m) => (
-            <div key={m.label} className={cn('rounded-2xl border p-4', m.key ? 'border-neon bg-neon text-white' : 'bg-surface')}>
-              <b className="font-display tabular block text-[34px] leading-none font-black">{m.value}</b>
-              <span className={cn('text-[13px]', m.key ? 'text-white/90' : 'text-muted-foreground')}>{m.label}</span>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-[14.5px] text-muted-foreground">{DIET.goal}</p>
-        <h3 className="font-display mt-6 text-2xl font-extrabold">Ejemplo de día</h3>
-        <div className="mt-2 divide-y divide-border border-y">
-          {DIET.meals.map(([meal, text]) => (
-            <div key={meal} className="grid gap-1 py-3 text-[14.5px] sm:grid-cols-[8rem_1fr]">
-              <b className="font-display text-lg font-extrabold">{meal}</b>
-              <span>{text}</span>
-            </div>
-          ))}
-        </div>
-        <h3 className="font-display mt-6 text-2xl font-extrabold">Cómo ajustar</h3>
-        <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-[14.5px]">
-          {DIET.adjust.map((a) => (
-            <li key={a}>{a}</li>
-          ))}
-        </ol>
-        <h3 className="font-display mt-6 text-2xl font-extrabold">Recuperación</h3>
-        <p className="mt-1 text-[14.5px] text-muted-foreground">{DIET.recovery}</p>
       </Section>
 
       <footer className="border-t-4 border-neon pt-5 text-[13px] text-muted-foreground">

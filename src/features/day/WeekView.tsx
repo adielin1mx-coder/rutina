@@ -4,11 +4,22 @@ import { dayFor, nextSession, WEEK } from '@/data/schedule';
 import type { Block } from '@/hooks/useBlock';
 import { ExerciseCard } from './ExerciseCard';
 import { WeekStrip } from './WeekStrip';
-import { TYPE_LABEL, typeOf, typeVars } from '@/lib/theme';
+import { TYPE_LABEL, typeOf, typeVars, usePrefs } from '@/lib/theme';
+import { recsFor } from '@/data/recomendaciones';
+import { dateOfWeekday, doneInWeek, doneOn } from '@/lib/adherence';
+import { useStore } from '@/lib/store';
+import { ALL_EXERCISES } from '@/data/rutina';
 
-export function WeekView({ today, selected, onSelect, block }: { today: number; selected: number; onSelect: (wd: number) => void; block: Block }) {
+export function WeekView({ now, selected, onSelect, block }: { now: Date; selected: number; onSelect: (wd: number) => void; block: Block }) {
+  const today = now.getDay();
   const day = dayFor(selected);
   const w = WEEK[selected];
+  const sessions = useStore((s) => s.sessions);
+  const { showRecs } = usePrefs();
+  const date = dateOfWeekday(now, selected);
+  const recs = day && showRecs ? recsFor(day.id) : [];
+  // Rutina: hecho si se registró en ese día de esta semana. Recomendación exclusiva: cualquier día de la semana.
+  const recDone = (id: string) => (ALL_EXERCISES.some((e) => e.id === id) ? doneOn(sessions, id, date) : doneInWeek(sessions, id, now));
 
   return (
     <div className="space-y-6">
@@ -29,8 +40,9 @@ export function WeekView({ today, selected, onSelect, block }: { today: number; 
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.25 }}
           className="space-y-3"
+          style={typeVars(day ? typeOf(day) : null)}
         >
-          <div style={typeVars(day ? typeOf(day) : null)} className="flex items-end gap-4 border-b-2 border-(--c) pb-3">
+          <div className="flex items-end gap-4 border-b-2 border-(--c) pb-3">
             <span className="font-display text-[clamp(64px,15vw,104px)] leading-[0.78] font-black text-(--c)">{w.short}</span>
             <div className="min-w-0">
               {day && (
@@ -58,8 +70,18 @@ export function WeekView({ today, selected, onSelect, block }: { today: number; 
                 </Note>
               )}
               {day.exercises.map((ex, i) => (
-                <ExerciseCard key={ex.id} ex={ex} index={i + 1} block={block} />
+                <ExerciseCard key={ex.id} ex={ex} index={i + 1} block={block} done={doneOn(sessions, ex.id, date)} />
               ))}
+              {recs.length > 0 && (
+                <>
+                  <h3 className="font-display pt-4 text-3xl font-black text-rec uppercase">
+                    Recomendadas <span className="text-[15px] font-semibold tracking-normal text-muted-foreground normal-case">· opcional</span>
+                  </h3>
+                  {recs.map((r, i) => (
+                    <ExerciseCard key={r.ex.id} ex={r.ex} index={`+${i + 1}`} block={block} why={r.why} done={recDone(r.ex.id)} />
+                  ))}
+                </>
+              )}
             </>
           ) : (
             <div className="flex items-center gap-3 rounded-2xl border border-dashed p-5 text-muted-foreground">

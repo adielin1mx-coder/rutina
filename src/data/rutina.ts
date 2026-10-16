@@ -541,31 +541,5 @@ export const PRIORITIES = [
   { name: 'Espalda baja', items: ['Peso muerto rumano el viernes (Pierna fuerza).', 'Hiperextensiones a 45° al final del miércoles (Pierna hipertrofia).'] },
 ];
 
-export const DIET = {
-  intro: 'Para 82 kg y 1.93 m. Mantenimiento estimado de 2,950–3,000 kcal, asumiendo unos 22 años y 5 entrenamientos por semana. Con este volumen de entrenamiento, empieza en el rango alto.',
-  macros: [
-    { value: '3,300', label: 'kcal al día', key: true },
-    { value: '170 g', label: 'Proteína, unos 2 g por kg' },
-    { value: '80–90 g', label: 'Grasa, unos 25% de las calorías' },
-    { value: '440–460 g', label: 'Carbohidratos, el resto' },
-  ],
-  goal: 'Meta: ganar 0.2–0.4 kg por semana (1–1.5 kg al mes).',
-  meals: [
-    ['Desayuno', '4 huevos, 100 g de avena con plátano y 1 vaso de leche.'],
-    ['Comida', '200 g de pechuga o carne magra, 250 g de arroz cocido, frijoles y verduras.'],
-    ['Pre-entreno', '2 tortillas o pan con crema de cacahuate y 1 fruta.'],
-    ['Post-entreno', '1 scoop de proteína con leche y 1 plátano.'],
-    ['Cena', '180 g de pescado, pollo o res, 300 g de papa o pasta cocida y verduras con aceite de oliva.'],
-    ['Colación', 'Yogur griego con granola o un puño de nueces.'],
-  ] as [string, string][],
-  adjust: [
-    'Pésate cada mañana al despertar, después de ir al baño, y compara el promedio semanal.',
-    'Si en 2 semanas no subes, agrega 150–200 kcal, de preferencia en carbohidratos.',
-    'Si subes más de 0.5 kg por semana o ganas grasa en la cintura, quita 150 kcal.',
-    'Mantén la proteína fija y mueve solo carbohidratos y grasas.',
-  ],
-  recovery: 'Creatina monohidratada 3–5 g al día. Duerme 7–9 horas. Usa proteína en polvo solo si no llegas a los 170 g con comida.',
-};
-
 export const ALL_EXERCISES: Exercise[] = Object.values(DAYS).flatMap((d) => d.exercises);
 export const exerciseById = (id: string) => ALL_EXERCISES.find((e) => e.id === id);

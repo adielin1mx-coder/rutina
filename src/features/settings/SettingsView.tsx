@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Check, Download, ExternalLink, Link2Off, RefreshCw, RotateCcw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { pull, saveSession, setSyncConfig, useStore } from '@/lib/store';
+import { importMeals, pull, saveSession, setSyncConfig, useStore } from '@/lib/store';
+import { Switch } from '@/components/ui/switch';
 import type { Session } from '@/lib/progression';
-import { DEFAULT_PREFS, inkOn, PRESETS, setPrefs, TYPE_LABEL, typeVars, usePrefs, type DayType } from '@/lib/theme';
+import { DEFAULT_PREFS, inkOn, PRESETS, setPrefs, TYPE_LABEL, typeVars, usePrefs, type Tone } from '@/lib/theme';
 
 export function SettingsView() {
   const sync = useStore((s) => s.sync);
@@ -11,6 +12,7 @@ export function SettingsView() {
   const error = useStore((s) => s.error);
   const lastSync = useStore((s) => s.lastSync);
   const sessions = useStore((s) => s.sessions);
+  const meals = useStore((s) => s.meals);
   const [url, setUrl] = useState(sync?.url ?? '');
   const [token, setToken] = useState(sync?.token ?? '');
 
@@ -28,7 +30,7 @@ export function SettingsView() {
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(Object.values(sessions), null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ sessions: Object.values(sessions), meals }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `rutina-registro-${new Date().toISOString().slice(0, 10)}.json`;
@@ -38,9 +40,14 @@ export function SettingsView() {
 
   async function importJson(file: File) {
     try {
-      const list = JSON.parse(await file.text()) as Session[];
+      // Respaldo nuevo: { sessions, meals }. El anterior era solo la lista de sesiones.
+      const data = JSON.parse(await file.text()) as Session[] | { sessions: Session[]; meals?: Record<string, string[]> };
+      const list = Array.isArray(data) ? data : data.sessions ?? [];
       list.forEach((s) => s.id && s.exerciseId && Array.isArray(s.sets) && saveSession(s));
-      toast.success(`${list.length} sesiones importadas`);
+      const importedMeals = Array.isArray(data) ? undefined : data.meals;
+      const days = importedMeals ? Object.keys(importedMeals).length : 0;
+      if (importedMeals && days) importMeals(importedMeals);
+      toast.success(`${list.length} sesiones${days ? ` y ${days} días de comidas` : ''} importadas`);
     } catch {
       toast.error('El archivo no es un respaldo válido.');
     }
@@ -51,7 +58,7 @@ export function SettingsView() {
       <header>
         <h1 className="font-display text-[clamp(52px,13vw,88px)] leading-[0.85] font-black uppercase">Ajustes</h1>
         <p className="mt-3 max-w-[60ch] text-[15.5px] text-muted-foreground">
-          Tus pesos se guardan en este dispositivo y, si conectas tu Google Sheet, también en tu Drive, sincronizados entre el celular y la computadora.
+          Tus pesos y comidas se guardan en este dispositivo y, si conectas tu Google Sheet, también en tu Drive, sincronizados entre el celular y la computadora.
         </p>
       </header>
 
@@ -143,10 +150,17 @@ export function SettingsView() {
   );
 }
 
+const TONES: Tone[] = ['hyp', 'str', 'rec'];
+const TONE_LABEL: Record<Tone, string> = {
+  hyp: 'Días de hipertrofia · L, M, X',
+  str: 'Días de fuerza · J, V',
+  rec: 'Recomendaciones opcionales',
+};
+
 function Appearance() {
   const prefs = usePrefs();
   const [name, setName] = useState(prefs.name);
-  const changed = prefs.hyp !== DEFAULT_PREFS.hyp || prefs.str !== DEFAULT_PREFS.str;
+  const changed = prefs.hyp !== DEFAULT_PREFS.hyp || prefs.str !== DEFAULT_PREFS.str || prefs.rec !== DEFAULT_PREFS.rec;
 
   return (
     <section className="grain space-y-5 rounded-2xl border bg-surface p-5">
@@ -164,11 +178,9 @@ function Appearance() {
         <span className="mt-1 block text-[12.5px] text-muted-foreground">Aparece en la bienvenida: “Bienvenido, {prefs.name}”.</span>
       </label>
 
-      {(['hyp', 'str'] as DayType[]).map((t) => (
+      {TONES.map((t) => (
         <div key={t}>
-          <p className="text-[12.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-            Días de {TYPE_LABEL[t].long.toLowerCase()} · {t === 'hyp' ? 'L, M, X' : 'J, V'}
-          </p>
+          <p className="text-[12.5px] font-semibold tracking-wide text-muted-foreground uppercase">{TONE_LABEL[t]}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {PRESETS.map((c) => (
               <button
@@ -196,19 +208,29 @@ function Appearance() {
         </div>
       ))}
 
-      <div className="grid grid-cols-2 gap-2">
-        {(['hyp', 'str'] as DayType[]).map((t) => (
-          <div key={t} style={typeVars(t)} className="relative overflow-hidden rounded-xl border border-(--c)/40 bg-surface-2 p-3">
-            <span className="font-display text-3xl leading-none font-black text-(--c)">{t === 'hyp' ? 'L' : 'J'}</span>
-            <span className="ml-2 rounded-md bg-(--c) px-1.5 py-0.5 text-[10.5px] font-black tracking-wider text-(--c-ink) uppercase">{TYPE_LABEL[t].long}</span>
+      <div className="grid grid-cols-3 gap-2">
+        {TONES.map((t) => (
+          <div key={t} style={typeVars(t)} className="relative flex flex-col items-start gap-1 overflow-hidden rounded-xl border border-(--c)/40 bg-surface-2 p-3">
+            <span className="font-display text-3xl leading-none font-black text-(--c)">{t === 'hyp' ? 'L' : t === 'str' ? 'J' : '+1'}</span>
+            <span className="rounded-md bg-(--c) px-1.5 py-0.5 text-[10px] font-black tracking-wider text-(--c-ink) uppercase">
+              {t === 'rec' ? 'Recomendado' : TYPE_LABEL[t].long}
+            </span>
             <span className="absolute inset-x-0 bottom-0 h-[3px] bg-(--c)" />
           </div>
         ))}
       </div>
 
+      <label className="flex items-center justify-between gap-3 rounded-xl border bg-surface-2 p-3">
+        <span>
+          <span className="block text-[14.5px] font-semibold">Mostrar recomendaciones</span>
+          <span className="text-[12.5px] text-muted-foreground">Ejercicios opcionales al final de cada día, con su conteo.</span>
+        </span>
+        <Switch checked={prefs.showRecs} onCheckedChange={(v) => setPrefs({ showRecs: v })} />
+      </label>
+
       {changed && (
         <button
-          onClick={() => setPrefs({ hyp: DEFAULT_PREFS.hyp, str: DEFAULT_PREFS.str })}
+          onClick={() => setPrefs({ hyp: DEFAULT_PREFS.hyp, str: DEFAULT_PREFS.str, rec: DEFAULT_PREFS.rec })}
           className="inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-[14px] font-semibold text-muted-foreground"
         >
           <RotateCcw className="size-4" /> Restablecer colores

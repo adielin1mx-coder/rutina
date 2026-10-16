@@ -41,6 +41,7 @@
   --color-surface-2: var(--surface-2);
   --color-hyp: var(--hyp);
   --color-str: var(--str);
+  --color-rec: var(--rec);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -66,6 +67,8 @@
   --str: #ff2d2d;
   --hyp-ink: #ffffff;
   --str-ink: #ffffff;
+  --rec: #22d3ee;
+  --rec-ink: #0a0a0b;
   --ok: #3ddc84;
   --warn: #ffb020;
   --primary: #ff2d2d;

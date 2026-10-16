@@ -2,7 +2,7 @@ import type { DayType } from '@/lib/theme';
 
 /** Una frase propia de cada día de la semana (índice JS: 0 = domingo). */
 const POR_DIA: Record<number, string> = {
-  0: 'Domingo de recarga: come bien, duerme y llega con todo al lunes.',
+  0: 'Domingo de recarga: descansa, duerme y llega con todo al lunes.',
   1: 'Lunes de empuje: el pecho se construye serie a serie.',
   2: 'Martes de jalón: espalda ancha, codos atrás y control en la bajada.',
   3: 'Miércoles de pierna: el volumen de hoy es el músculo de mañana.',
@@ -29,7 +29,7 @@ const POR_TIPO: Record<DayType | 'rest', string[]> = {
     'Barra cargada, mente tranquila.',
   ],
   rest: [
-    'Recupera: 170 g de proteína y 7–9 horas de sueño.',
+    'Recupera: 7–9 horas de sueño y mañana se vuelve más fuerte.',
     'El músculo crece cuando descansas. Hoy también cuenta.',
     'Camina, estírate y prepárate para la próxima sesión.',
   ],

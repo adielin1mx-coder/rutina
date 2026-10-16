@@ -11,7 +11,8 @@
  *  5. Autoriza los permisos y copia la URL que termina en /exec.
  *  6. En la app: Ajustes › pega la URL y el TOKEN.
  *
- * Cada fila es una serie. Puedes ver, filtrar o graficar la hoja libremente;
+ * Hoja "Registro": cada fila es una serie. Hoja "Comidas": una fila por día con las comidas marcadas.
+ * Puedes ver, filtrar o graficar la hoja libremente;
  * no cambies el orden de las columnas.
  */
 
@@ -26,12 +27,13 @@ function doPost(e) {
     var token = PropertiesService.getScriptProperties().getProperty('TOKEN');
     if (!token || body.token !== token) return json({ ok: false, error: 'Token inválido' });
 
-    if (body.action === 'list') return json({ ok: true, sessions: listSessions() });
+    if (body.action === 'list') return json({ ok: true, sessions: listSessions(), meals: listMeals() });
     if (body.action === 'upsert') {
       var sessions = body.sessions || [];
       var remove = (body.deleted || []).concat(sessions.map(function (s) { return s.id; }));
       deleteRows(remove);
       appendSessions(sessions);
+      upsertMeals(body.meals || []);
       return json({ ok: true, saved: sessions.length });
     }
     return json({ ok: false, error: 'Acción desconocida' });
@@ -116,6 +118,50 @@ function listSessions() {
     byId[id].sets = byId[id].sets.filter(Boolean);
     return byId[id];
   });
+}
+
+var MEALS = 'Comidas';
+var MEAL_HEADERS = ['fecha', 'comidas', 'total'];
+
+function mealsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(MEALS);
+  if (!sh) {
+    sh = ss.insertSheet(MEALS);
+    sh.appendRow(MEAL_HEADERS);
+    sh.setFrozenRows(1);
+    sh.getRange('A:A').setNumberFormat('@');
+  }
+  return sh;
+}
+
+/** Una fila por fecha: se reemplaza si ya existe. */
+function upsertMeals(meals) {
+  if (!meals.length) return;
+  var sh = mealsSheet();
+  var last = sh.getLastRow();
+  var dates = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+  meals.forEach(function (m) {
+    var row = [m.date, (m.done || []).join(' · '), (m.done || []).length];
+    var i = dates.indexOf(m.date);
+    if (i >= 0) sh.getRange(i + 2, 1, 1, 3).setValues([row]);
+    else {
+      sh.appendRow(row);
+      dates.push(m.date);
+    }
+  });
+}
+
+function listMeals() {
+  var sh = mealsSheet();
+  var last = sh.getLastRow();
+  var out = {};
+  if (last < 2) return out;
+  sh.getRange(2, 1, last - 1, 2).getValues().forEach(function (r) {
+    var d = r[0] instanceof Date ? Utilities.formatDate(r[0], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[0]);
+    out[d] = String(r[1]) ? String(r[1]).split(' · ') : [];
+  });
+  return out;
 }
 
 function json(obj) {

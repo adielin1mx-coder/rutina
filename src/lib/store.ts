@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { exerciseById } from '@/data/rutina';
+import { exerciseById } from '@/data/catalog';
 import type { Session, Unit } from './progression';
 
 /*
@@ -15,6 +15,8 @@ const K = {
   sync: 'rutina.sync.v1',
   units: 'rutina.units.v1',
   fst7: 'rutina.fst7.v1',
+  meals: 'rutina.meals.v1',
+  mealsPending: 'rutina.meals-pending.v1',
 };
 
 function load<T>(key: string, fallback: T): T {
@@ -49,6 +51,9 @@ interface State {
   lastSync: number | null;
   units: Record<string, Unit>;
   fst7: Record<string, boolean>;
+  /** Comidas marcadas por fecha (YYYY-MM-DD → nombres). */
+  meals: Record<string, string[]>;
+  mealsPending: string[];
 }
 
 let state: State = {
@@ -61,8 +66,11 @@ let state: State = {
   lastSync: null,
   units: load(K.units, {}),
   fst7: load(K.fst7, {}),
+  meals: load(K.meals, {}),
+  mealsPending: load(K.mealsPending, []),
 };
-state.status = state.sync ? (state.pending.length || state.deleted.length ? 'pending' : 'idle') : 'off';
+const hasPending = () => state.pending.length > 0 || state.deleted.length > 0 || state.mealsPending.length > 0;
+state.status = state.sync ? (hasPending() ? 'pending' : 'idle') : 'off';
 
 const listeners = new Set<() => void>();
 function set(patch: Partial<State>) {
@@ -73,6 +81,8 @@ function set(patch: Partial<State>) {
   if ('sync' in patch) save(K.sync, state.sync);
   if ('units' in patch) save(K.units, state.units);
   if ('fst7' in patch) save(K.fst7, state.fst7);
+  if ('meals' in patch) save(K.meals, state.meals);
+  if ('mealsPending' in patch) save(K.mealsPending, state.mealsPending);
   listeners.forEach((l) => l());
 }
 
@@ -120,11 +130,27 @@ export function deleteSession(id: string) {
 export const setUnit = (exerciseId: string, unit: Unit) => set({ units: { ...state.units, [exerciseId]: unit } });
 export const setFst7 = (exerciseId: string, on: boolean) => set({ fst7: { ...state.fst7, [exerciseId]: on } });
 
+/** Marca o desmarca una comida en una fecha. */
+export function toggleMeal(date: string, meal: string) {
+  const cur = state.meals[date] ?? [];
+  const next = cur.includes(meal) ? cur.filter((m) => m !== meal) : [...cur, meal];
+  set({ meals: { ...state.meals, [date]: next }, mealsPending: [...new Set([...state.mealsPending, date])] });
+  void flush();
+}
+
+export function importMeals(meals: Record<string, string[]>) {
+  set({ meals: { ...state.meals, ...meals }, mealsPending: [...new Set([...state.mealsPending, ...Object.keys(meals)])] });
+  void flush();
+}
+
 export function setSyncConfig(cfg: SyncConfig | null) {
   set({ sync: cfg, status: cfg ? 'idle' : 'off', error: null });
   if (cfg) {
     // Al conectar por primera vez, todo lo local se marca pendiente para subirlo.
-    set({ pending: [...new Set([...state.pending, ...Object.keys(state.sessions)])] });
+    set({
+      pending: [...new Set([...state.pending, ...Object.keys(state.sessions)])],
+      mealsPending: [...new Set([...state.mealsPending, ...Object.keys(state.meals)])],
+    });
     void pull();
   }
 }
@@ -149,7 +175,7 @@ let flushing: Promise<void> | null = null;
 export function flush(): Promise<void> {
   if (!state.sync) return Promise.resolve();
   if (flushing) return flushing;
-  if (!state.pending.length && !state.deleted.length) return Promise.resolve();
+  if (!hasPending()) return Promise.resolve();
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     set({ status: 'pending' });
     return Promise.resolve();
@@ -157,18 +183,22 @@ export function flush(): Promise<void> {
   flushing = (async () => {
     const ids = [...state.pending];
     const del = [...state.deleted];
+    const mealDates = [...state.mealsPending];
+    const sentMeals = new Map(mealDates.map((d) => [d, JSON.stringify(state.meals[d] ?? [])]));
     set({ status: 'syncing', error: null });
     try {
       const sessions = ids.map((id) => state.sessions[id]).filter(Boolean).map(withName);
       const sentTs = new Map(sessions.map((s) => [s.id, s.ts]));
-      await call({ action: 'upsert', sessions, deleted: del });
+      const meals = mealDates.map((date) => ({ date, done: state.meals[date] ?? [] }));
+      await call({ action: 'upsert', sessions, deleted: del, meals });
       set({
         // Si una sesión se editó mientras se enviaba, sigue pendiente.
         pending: state.pending.filter((id) => !sentTs.has(id) || state.sessions[id]?.ts !== sentTs.get(id)),
         deleted: state.deleted.filter((id) => !del.includes(id)),
+        mealsPending: state.mealsPending.filter((d) => !sentMeals.has(d) || JSON.stringify(state.meals[d] ?? []) !== sentMeals.get(d)),
         lastSync: Date.now(),
       });
-      set({ status: state.pending.length || state.deleted.length ? 'pending' : 'idle' });
+      set({ status: hasPending() ? 'pending' : 'idle' });
     } catch (e) {
       set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -190,7 +220,9 @@ export async function pull() {
     const merged: Record<string, Session> = {};
     for (const s of remote) if (!state.deleted.includes(s.id)) merged[s.id] = s;
     for (const id of state.pending) if (state.sessions[id]) merged[id] = state.sessions[id];
-    set({ sessions: merged, lastSync: Date.now(), status: 'idle' });
+    const meals: Record<string, string[]> = { ...(json.meals ?? {}) };
+    for (const d of state.mealsPending) if (state.meals[d]) meals[d] = state.meals[d];
+    set({ sessions: merged, meals, lastSync: Date.now(), status: 'idle' });
     await flush();
   } catch (e) {
     set({ status: 'error', error: e instanceof Error ? e.message : String(e) });

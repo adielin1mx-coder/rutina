@@ -10,13 +10,21 @@ export const TYPE_LABEL: Record<DayType, { long: string; tag: string }> = {
   str: { long: 'Fuerza', tag: 'FZA' },
 };
 
+/** Colores personalizables: tipos de día y recomendaciones. */
+export type Tone = DayType | 'rec';
+
 export interface Prefs {
   hyp: string;
   str: string;
+  rec: string;
   name: string;
+  showRecs: boolean;
+  /** Comidas que se deben hacer al día (solo nombres, para el checklist). */
+  meals: string[];
 }
 
-export const DEFAULT_PREFS: Prefs = { hyp: '#a855f7', str: '#ff2d2d', name: 'Ian' };
+export const DEFAULT_MEALS = ['Desayuno', 'Comida', 'Pre-entreno', 'Post-entreno', 'Cena', 'Colación'];
+export const DEFAULT_PREFS: Prefs = { hyp: '#a855f7', str: '#ff2d2d', rec: '#22d3ee', name: 'Ian', showRecs: true, meals: DEFAULT_MEALS };
 export const PRESETS = ['#ff2d2d', '#ff7a1a', '#ffc21a', '#3ddc84', '#22d3ee', '#3b82f6', '#a855f7', '#f472b6'];
 
 const KEY = 'rutina.prefs';
@@ -28,6 +36,12 @@ function read(): Prefs {
     return {
       hyp: raw.hyp && HEX.test(raw.hyp) ? raw.hyp : DEFAULT_PREFS.hyp,
       str: raw.str && HEX.test(raw.str) ? raw.str : DEFAULT_PREFS.str,
+      rec: raw.rec && HEX.test(raw.rec) ? raw.rec : DEFAULT_PREFS.rec,
+      showRecs: raw.showRecs !== false,
+      meals:
+        Array.isArray(raw.meals) && raw.meals.some((m) => typeof m === 'string' && m.trim())
+          ? raw.meals.filter((m) => typeof m === 'string' && m.trim()).map((m) => m.trim().slice(0, 30))
+          : DEFAULT_MEALS,
       name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 24) : DEFAULT_PREFS.name,
     };
   } catch {
@@ -52,10 +66,12 @@ export function applyPrefs(p: Prefs = prefs) {
   root.setProperty('--str', p.str);
   root.setProperty('--hyp-ink', inkOn(p.hyp));
   root.setProperty('--str-ink', inkOn(p.str));
+  root.setProperty('--rec', p.rec);
+  root.setProperty('--rec-ink', inkOn(p.rec));
 }
 
 /** Variables CSS `--c` y `--c-ink` con el color del tipo, para usar `bg-(--c)` etc. */
-export const typeVars = (t: DayType | null) =>
+export const typeVars = (t: Tone | null) =>
   (t ? { '--c': `var(--${t})`, '--c-ink': `var(--${t}-ink)` } : { '--c': 'var(--muted-foreground)', '--c-ink': 'var(--background)' }) as React.CSSProperties;
 
 export function setPrefs(patch: Partial<Prefs>) {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronDown, Flame, NotebookPen } from 'lucide-react';
+import { CheckCircle2, ChevronDown, CircleDashed, Flame, Lightbulb, NotebookPen } from 'lucide-react';
 import type { Exercise } from '@/data/rutina';
 import { useLogger } from '@/features/log/logger-context';
 import { AdviceBadge } from '@/features/log/AdviceBadge';
@@ -9,7 +9,12 @@ import { historyOf, useStore } from '@/lib/store';
 import { fst7Allowed, type Block } from '@/hooks/useBlock';
 import { cn } from '@/lib/utils';
 
-export function ExerciseCard({ ex, index, block }: { ex: Exercise; index: number; block: Block }) {
+/**
+ * Tarjeta de ejercicio. Con `why` es una recomendación opcional: va en el color `--rec`.
+ * `done` marca si ya se registró (hoy o esta semana, según la vista).
+ */
+export function ExerciseCard({ ex, index, block, why, done }: { ex: Exercise; index: number | string; block: Block; why?: string; done?: boolean }) {
+  const extra = why !== undefined;
   const [open, setOpen] = useState(false);
   const logger = useLogger();
   const sessions = useStore((s) => s.sessions);
@@ -28,14 +33,33 @@ export function ExerciseCard({ ex, index, block }: { ex: Exercise; index: number
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
         'grain relative overflow-hidden rounded-2xl border bg-surface p-4 sm:p-5',
-        ex.priority && 'bg-gradient-to-r from-neon-soft via-surface to-surface',
+        ex.priority && !extra && 'bg-gradient-to-r from-neon-soft via-surface to-surface',
+        extra && 'border-dashed border-rec/50 bg-gradient-to-r from-rec/10 via-surface to-surface',
+        done && !extra && 'border-(--c)/45',
       )}
     >
-      {ex.priority && <span className="absolute inset-y-4 left-0 w-1 rounded-r bg-neon shadow-[0_0_14px_var(--neon)]" />}
+      {ex.priority && !extra && <span className="absolute inset-y-4 left-0 w-1 rounded-r bg-neon shadow-[0_0_14px_var(--neon)]" />}
+      {extra && <span className="absolute inset-y-4 left-0 w-1 rounded-r bg-rec shadow-[0_0_14px_var(--rec)]" />}
 
       <div className="grid grid-cols-[2rem_1fr] gap-x-3 sm:grid-cols-[2.25rem_1fr_auto]">
-        <span className="font-display text-[28px] leading-none font-extrabold text-muted-foreground/70">{index}</span>
+        <span className={cn('font-display text-[28px] leading-none font-extrabold', extra ? 'text-rec' : 'text-muted-foreground/70')}>{index}</span>
         <div className="min-w-0">
+          {(extra || done !== undefined) && (
+            <p className="mb-1 flex flex-wrap items-center gap-1.5 text-[11.5px] font-bold tracking-wider uppercase">
+              {extra && <span className="rounded-md bg-rec px-1.5 py-0.5 text-(--rec-ink)">Recomendado · opcional</span>}
+              {done ? (
+                <span className={cn('inline-flex items-center gap-1', extra ? 'text-rec' : 'text-(--c)')}>
+                  <CheckCircle2 className="size-3.5" /> Hecho
+                </span>
+              ) : (
+                done === false && (
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <CircleDashed className="size-3.5" /> Pendiente
+                  </span>
+                )
+              )}
+            </p>
+          )}
           <h3 className="text-[17px] leading-snug font-semibold text-balance">{ex.name}</h3>
         </div>
         <div className="col-start-2 mt-2 sm:col-start-3 sm:row-start-1 sm:mt-0 sm:text-right">
@@ -46,18 +70,27 @@ export function ExerciseCard({ ex, index, block }: { ex: Exercise; index: number
         </div>
 
         <div className="col-start-2 mt-3 flex flex-wrap gap-1.5 sm:col-span-2">
-          <Chip kind="grip">{ex.grip}</Chip>
-          <Chip kind="effort">{fst7On ? 'FST-7 · 30–45 s de descanso' : ex.effort}</Chip>
+          <Chip kind="grip" rec={extra}>{ex.grip}</Chip>
+          <Chip kind="effort" rec={extra}>{fst7On ? 'FST-7 · 30–45 s de descanso' : ex.effort}</Chip>
           {ex.priority && <Chip kind="prio">Prioridad: {ex.priority}</Chip>}
           {recommendedFst7 && !fst7On && <Chip kind="fst">FST-7 recomendado</Chip>}
         </div>
 
         {ex.note && <p className="col-start-2 mt-2.5 text-[14.5px] text-muted-foreground sm:col-span-2">{ex.note}</p>}
+        {extra && (
+          <p className="col-start-2 mt-2.5 flex gap-2 rounded-xl border border-rec/25 bg-rec/5 p-2.5 text-[13.5px] text-foreground/80 sm:col-span-2">
+            <Lightbulb className="mt-0.5 size-4 shrink-0 text-rec" />
+            {why}
+          </p>
+        )}
 
         <div className="col-start-2 mt-4 flex flex-wrap items-center gap-2 sm:col-span-2">
           <button
             onClick={() => logger.open(ex)}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-neon px-4 text-sm font-semibold text-white shadow-[0_6px_24px_-6px_var(--neon)] transition active:scale-95"
+            className={cn(
+              'inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition active:scale-95',
+              extra ? 'bg-rec text-(--rec-ink) shadow-[0_6px_24px_-6px_var(--rec)]' : 'bg-neon text-white shadow-[0_6px_24px_-6px_var(--neon)]',
+            )}
           >
             <NotebookPen className="size-4" /> Registrar
           </button>
@@ -76,7 +109,7 @@ export function ExerciseCard({ ex, index, block }: { ex: Exercise; index: number
         <button
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="col-start-2 mt-3 inline-flex w-fit items-center gap-1 text-[14px] font-semibold text-neon sm:col-span-2"
+          className={cn('col-start-2 mt-3 inline-flex w-fit items-center gap-1 text-[14px] font-semibold sm:col-span-2', extra ? 'text-rec' : 'text-neon')}
         >
           Variaciones
           <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
@@ -92,7 +125,7 @@ export function ExerciseCard({ ex, index, block }: { ex: Exercise; index: number
             >
               {ex.variations.map(([name, detail]) => (
                 <li key={name} className="mt-2 flex gap-2 text-[14.5px]">
-                  <span className="mt-2 size-1.5 shrink-0 rounded-full bg-neon/70" />
+                  <span className={cn('mt-2 size-1.5 shrink-0 rounded-full', extra ? 'bg-rec/70' : 'bg-neon/70')} />
                   <span>
                     {name} <span className="text-muted-foreground">({detail})</span>
                   </span>
@@ -106,18 +139,18 @@ export function ExerciseCard({ ex, index, block }: { ex: Exercise; index: number
   );
 }
 
-function Chip({ kind, children }: { kind: 'grip' | 'effort' | 'prio' | 'fst'; children: React.ReactNode }) {
+function Chip({ kind, rec, children }: { kind: 'grip' | 'effort' | 'prio' | 'fst'; rec?: boolean; children: React.ReactNode }) {
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[13px] font-medium',
         kind === 'grip' && 'border-border bg-surface-2',
-        kind === 'effort' && 'border-neon bg-neon text-white',
+        kind === 'effort' && (rec ? 'border-rec bg-rec text-(--rec-ink)' : 'border-neon bg-neon text-white'),
         kind === 'prio' && 'border-dashed border-neon text-neon',
         kind === 'fst' && 'border-warn/50 text-warn',
       )}
     >
-      {kind === 'grip' && <span className="size-1.5 rounded-full bg-neon" />}
+      {kind === 'grip' && <span className={cn('size-1.5 rounded-full', rec ? 'bg-rec' : 'bg-neon')} />}
       {kind === 'fst' && <Flame className="size-3.5" />}
       {children}
     </span>

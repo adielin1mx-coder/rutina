@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ArrowRight, BatteryCharging, Moon, Rocket, Sparkles } from 'lucide-react';
+import { ArrowRight, BatteryCharging, Moon, Rocket, Sparkles, Utensils } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BorderBeam } from '@/components/ui/border-beam';
 import { NumberTicker } from '@/components/ui/number-ticker';
@@ -14,8 +14,10 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { WeekStrip } from '@/features/day/WeekStrip';
 import { TYPE_LABEL, typeOf, typeVars, usePrefs } from '@/lib/theme';
+import { recsFor } from '@/data/recomendaciones';
+import { mealsDone } from '@/lib/adherence';
 
-export function TodayView({ today, block, onOpenDay }: { today: Date; block: Block; onOpenDay: (weekday: number) => void }) {
+export function TodayView({ today, block, onOpenDay, onMeals }: { today: Date; block: Block; onOpenDay: (weekday: number) => void; onMeals: () => void }) {
   const wd = today.getDay();
   const day = dayFor(wd);
   const next = nextSession(wd);
@@ -25,7 +27,11 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
     () => new Set(Object.values(sessions).filter((x) => x.date === date).map((x) => x.exerciseId)),
     [sessions, date],
   );
-  const { name } = usePrefs();
+  const { name, showRecs, meals: mealNames } = usePrefs();
+  const meals = useStore((s) => s.meals);
+  const mealsToday = mealsDone(meals, mealNames, date);
+  const recs = day && showRecs ? recsFor(day.id) : [];
+  const recsDone = recs.filter((r) => loggedToday.has(r.ex.id)).length;
   const type = day ? typeOf(day) : null;
   const dateLabel = today.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -33,9 +39,8 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
   const totalSets = day ? day.exercises.reduce((n, e) => n + e.sets, 0) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={typeVars(type)}>
       <section
-        style={typeVars(type)}
         className={cn('grain relative overflow-hidden rounded-3xl border bg-surface px-5 pt-6 pb-5 sm:px-7 sm:pt-8', type && 'border-(--c)/30')}
       >
         <Spotlight className="from-(--c)/40 via-(--c)/10 to-transparent blur-2xl" size={260} />
@@ -63,7 +68,7 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
               {day.focus.replace(/^(Fuerza|Hipertrofia)\. /, '')}
             </>
           ) : (
-            'Recupera: come tus 170 g de proteína y duerme 7–9 horas. El crecimiento pasa hoy.'
+            'Recupera: duerme 7–9 horas y llega con energía a la próxima sesión. El crecimiento pasa hoy.'
           )}
         </p>
 
@@ -88,22 +93,26 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
           </button>
         )}
 
-        {day && (
-          <div className="mt-5">
-            <div className="flex justify-between text-[12.5px] text-muted-foreground">
-              <span>Registrado hoy</span>
-              <span className="tabular">{done}/{day.exercises.length}</span>
-            </div>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
-              <motion.div
-                className="h-full rounded-full bg-(--c) shadow-[0_0_12px_var(--c)]"
-                initial={false}
-                animate={{ width: `${(done / day.exercises.length) * 100}%` }}
-                transition={{ type: 'spring', bounce: 0, duration: 0.6 }}
-              />
-            </div>
-          </div>
-        )}
+        <div className="mt-5 space-y-2.5">
+          {day && <Bar label="Rutina" done={done} total={day.exercises.length} color="var(--c)" />}
+          {recs.length > 0 && <Bar label="Recomendadas (opcional)" done={recsDone} total={recs.length} color="var(--rec)" thin />}
+        </div>
+
+        <button
+          onClick={onMeals}
+          className="mt-4 inline-flex items-center gap-2 rounded-full border bg-background/40 px-3 py-1.5 text-[13px] font-semibold transition hover:border-foreground/30"
+        >
+          <Utensils className="size-4 text-muted-foreground" />
+          Comidas
+          <span className="tabular">
+            {mealsToday}/{mealNames.length}
+          </span>
+          <span className="flex gap-0.5">
+            {mealNames.map((m, i) => (
+              <span key={m} className={cn('size-1.5 rounded-full', i < mealsToday ? 'bg-ok' : 'bg-foreground/15')} />
+            ))}
+          </span>
+        </button>
       </section>
 
       <BlockBanner block={block} />
@@ -119,10 +128,46 @@ export function TodayView({ today, block, onOpenDay }: { today: Date; block: Blo
             </TextShimmer>
           </div>
           {day.exercises.map((ex, i) => (
-            <ExerciseCard key={ex.id} ex={ex} index={i + 1} block={block} />
+            <ExerciseCard key={ex.id} ex={ex} index={i + 1} block={block} done={loggedToday.has(ex.id)} />
           ))}
         </section>
       )}
+
+      {recs.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-x-3">
+            <h2 className="font-display text-4xl font-black text-rec uppercase">Recomendadas</h2>
+            <span className="tabular pb-1 text-[13px] font-semibold text-muted-foreground">
+              {recsDone}/{recs.length} hechas · opcional
+            </span>
+          </div>
+          {recs.map((r, i) => (
+            <ExerciseCard key={r.ex.id} ex={r.ex} index={`+${i + 1}`} block={block} why={r.why} done={loggedToday.has(r.ex.id)} />
+          ))}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Bar({ label, done, total, color, thin }: { label: string; done: number; total: number; color: string; thin?: boolean }) {
+  return (
+    <div>
+      <div className="flex justify-between text-[12.5px] text-muted-foreground">
+        <span>{label}</span>
+        <span className="tabular">
+          {done}/{total}
+        </span>
+      </div>
+      <div className={cn('mt-1.5 overflow-hidden rounded-full bg-surface-2', thin ? 'h-1' : 'h-1.5')}>
+        <motion.div
+          className="h-full rounded-full"
+          style={{ background: color, boxShadow: `0 0 12px ${color}` }}
+          initial={false}
+          animate={{ width: `${(done / total) * 100}%` }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.6 }}
+        />
+      </div>
     </div>
   );
 }

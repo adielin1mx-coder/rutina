@@ -1,4 +1,4 @@
-import { CloudOff, Cloud, CloudAlert, Loader2, CloudUpload } from 'lucide-react';
+import { CloudOff, Cloud, CloudAlert, Loader2, CloudUpload, Settings } from 'lucide-react';
 import { useStore, type SyncStatus } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -10,9 +10,9 @@ const SYNC: Record<SyncStatus, { icon: typeof Cloud; text: string; cls: string }
   error: { icon: CloudAlert, text: 'Error de sync', cls: 'text-destructive' },
 };
 
-export function TopBar({ onSettings }: { onSettings: () => void }) {
+export function TopBar({ onSettings, settingsActive }: { onSettings: () => void; settingsActive: boolean }) {
   const status = useStore((s) => s.status);
-  const pending = useStore((s) => s.pending.length + s.deleted.length);
+  const pending = useStore((s) => s.pending.length + s.deleted.length + s.mealsPending.length);
   const { icon: Icon, text, cls } = SYNC[status];
   return (
     <header
@@ -30,11 +30,24 @@ export function TopBar({ onSettings }: { onSettings: () => void }) {
           </span>
           <span className="font-display text-[22px] font-black tracking-wide uppercase">Rutina</span>
         </div>
-        <button onClick={onSettings} className={cn('inline-flex items-center gap-1.5 rounded-full border bg-surface px-3 py-1.5 text-[12.5px] font-semibold', cls)}>
-          <Icon className="size-4" />
-          {text}
-          {pending > 0 && status !== 'off' && <span className="tabular">· {pending}</span>}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onSettings} className={cn('inline-flex items-center gap-1.5 rounded-full border bg-surface px-3 py-1.5 text-[12.5px] font-semibold', cls)}>
+            <Icon className="size-4" />
+            {text}
+            {pending > 0 && status !== 'off' && <span className="tabular">· {pending}</span>}
+          </button>
+          <button
+            onClick={onSettings}
+            aria-label="Ajustes"
+            aria-current={settingsActive ? 'page' : undefined}
+            className={cn(
+              'grid size-9 place-items-center rounded-full border transition-colors',
+              settingsActive ? 'border-foreground/30 bg-foreground text-background' : 'bg-surface text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Settings className={cn('size-[18px] transition-transform duration-500', settingsActive && 'rotate-90')} />
+          </button>
+        </div>
       </div>
     </header>
   );
