@@ -1,0 +1,141 @@
+import { useState } from 'react';
+import { Download, ExternalLink, Link2Off, RefreshCw, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+import { pull, saveSession, setSyncConfig, useStore } from '@/lib/store';
+import type { Session } from '@/lib/progression';
+
+export function SettingsView() {
+  const sync = useStore((s) => s.sync);
+  const status = useStore((s) => s.status);
+  const error = useStore((s) => s.error);
+  const lastSync = useStore((s) => s.lastSync);
+  const sessions = useStore((s) => s.sessions);
+  const [url, setUrl] = useState(sync?.url ?? '');
+  const [token, setToken] = useState(sync?.token ?? '');
+
+  function connect() {
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url.trim())) {
+      toast.error('La URL debe ser la del Web App de Apps Script y terminar en /exec.');
+      return;
+    }
+    if (token.trim().length < 8) {
+      toast.error('Usa un token de al menos 8 caracteres.');
+      return;
+    }
+    setSyncConfig({ url: url.trim(), token: token.trim() });
+    toast.success('Conectado a tu Google Sheet');
+  }
+
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(Object.values(sessions), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `rutina-registro-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importJson(file: File) {
+    try {
+      const list = JSON.parse(await file.text()) as Session[];
+      list.forEach((s) => s.id && s.exerciseId && Array.isArray(s.sets) && saveSession(s));
+      toast.success(`${list.length} sesiones importadas`);
+    } catch {
+      toast.error('El archivo no es un respaldo válido.');
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="font-display text-[clamp(52px,13vw,88px)] leading-[0.85] font-black uppercase">Ajustes</h1>
+        <p className="mt-3 max-w-[60ch] text-[15.5px] text-muted-foreground">
+          Tus pesos se guardan en este dispositivo y, si conectas tu Google Sheet, también en tu Drive, sincronizados entre el celular y la computadora.
+        </p>
+      </header>
+
+      <section className="grain space-y-4 rounded-2xl border bg-surface p-5">
+        <h2 className="font-display text-3xl font-black uppercase">Google Sheet</h2>
+        <ol className="list-decimal space-y-1 pl-5 text-[14px] text-foreground/80">
+          <li>Crea una Google Sheet en tu Drive.</li>
+          <li>Extensiones › Apps Script › pega el contenido de <code className="text-neon">apps-script/Code.gs</code> del repositorio.</li>
+          <li>Configuración del proyecto › Propiedades del script › agrega <code className="text-neon">TOKEN</code> con una frase secreta.</li>
+          <li>Implementar › Nueva implementación › Aplicación web · Ejecutar como: Yo · Acceso: Cualquier persona.</li>
+          <li>Copia la URL que termina en <code>/exec</code> y pégala aquí junto con tu TOKEN.</li>
+        </ol>
+        <a
+          href="https://github.com/adielin1mx-coder/rutina/blob/main/apps-script/Code.gs"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-neon"
+        >
+          Ver Code.gs <ExternalLink className="size-3.5" />
+        </a>
+
+        <label className="block">
+          <span className="text-[12.5px] font-semibold tracking-wide text-muted-foreground uppercase">URL del Web App</span>
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://script.google.com/macros/s/…/exec"
+            className="mt-1 h-11 w-full rounded-xl border border-input bg-background px-3 text-[14px] outline-none focus:border-neon"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[12.5px] font-semibold tracking-wide text-muted-foreground uppercase">Token</span>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="La frase secreta que pusiste en TOKEN"
+            className="mt-1 h-11 w-full rounded-xl border border-input bg-background px-3 text-[14px] outline-none focus:border-neon"
+          />
+        </label>
+        <p className="text-[12.5px] text-muted-foreground">La URL y el token se guardan solo en este navegador; nunca se suben al repositorio.</p>
+
+        <div className="flex flex-wrap gap-2">
+          <button onClick={connect} className="h-11 rounded-xl bg-neon px-5 font-semibold text-white">
+            {sync ? 'Guardar cambios' : 'Conectar'}
+          </button>
+          {sync && (
+            <>
+              <button onClick={() => void pull()} className="inline-flex h-11 items-center gap-2 rounded-xl border bg-surface-2 px-4 font-semibold">
+                <RefreshCw className={status === 'syncing' ? 'size-4 animate-spin' : 'size-4'} /> Sincronizar ahora
+              </button>
+              <button
+                onClick={() => {
+                  setSyncConfig(null);
+                  toast('Desconectado. Los datos siguen en este dispositivo.');
+                }}
+                className="inline-flex h-11 items-center gap-2 rounded-xl border px-4 font-semibold text-muted-foreground"
+              >
+                <Link2Off className="size-4" /> Desconectar
+              </button>
+            </>
+          )}
+        </div>
+        {sync && (
+          <p className="text-[13px] text-muted-foreground">
+            Estado: <b className="text-foreground">{status}</b>
+            {lastSync && ` · última sincronización ${new Date(lastSync).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`}
+            {error && <span className="block text-destructive">{error}</span>}
+          </p>
+        )}
+      </section>
+
+      <section className="grain space-y-3 rounded-2xl border bg-surface p-5">
+        <h2 className="font-display text-3xl font-black uppercase">Respaldo</h2>
+        <p className="text-[14px] text-muted-foreground">{Object.keys(sessions).length} sesiones guardadas en este dispositivo.</p>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={exportJson} className="inline-flex h-11 items-center gap-2 rounded-xl border bg-surface-2 px-4 font-semibold">
+            <Download className="size-4" /> Exportar JSON
+          </button>
+          <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border bg-surface-2 px-4 font-semibold">
+            <Upload className="size-4" /> Importar JSON
+            <input type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void importJson(e.target.files[0])} />
+          </label>
+        </div>
+      </section>
+    </div>
+  );
+}

@@ -1,0 +1,203 @@
+import { useSyncExternalStore } from 'react';
+import { exerciseById } from '@/data/rutina';
+import type { Session, Unit } from './progression';
+
+/*
+ * Registro de sesiones. Fuente local: localStorage (funciona sin conexión).
+ * Fuente remota: Google Sheet vía Apps Script (ver apps-script/Code.gs).
+ * Cada cambio se marca como pendiente y se envía en cuanto hay conexión.
+ */
+
+const K = {
+  sessions: 'rutina.sessions.v1',
+  pending: 'rutina.pending.v1',
+  deleted: 'rutina.deleted.v1',
+  sync: 'rutina.sync.v1',
+  units: 'rutina.units.v1',
+  fst7: 'rutina.fst7.v1',
+};
+
+function load<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* almacenamiento bloqueado: se sigue en memoria */
+  }
+}
+
+export type SyncStatus = 'off' | 'idle' | 'syncing' | 'pending' | 'error';
+export interface SyncConfig {
+  url: string;
+  token: string;
+}
+
+interface State {
+  sessions: Record<string, Session>;
+  pending: string[];
+  deleted: string[];
+  sync: SyncConfig | null;
+  status: SyncStatus;
+  error: string | null;
+  lastSync: number | null;
+  units: Record<string, Unit>;
+  fst7: Record<string, boolean>;
+}
+
+let state: State = {
+  sessions: load(K.sessions, {}),
+  pending: load(K.pending, []),
+  deleted: load(K.deleted, []),
+  sync: load<SyncConfig | null>(K.sync, null),
+  status: 'off',
+  error: null,
+  lastSync: null,
+  units: load(K.units, {}),
+  fst7: load(K.fst7, {}),
+};
+state.status = state.sync ? (state.pending.length || state.deleted.length ? 'pending' : 'idle') : 'off';
+
+const listeners = new Set<() => void>();
+function set(patch: Partial<State>) {
+  state = { ...state, ...patch };
+  if ('sessions' in patch) save(K.sessions, state.sessions);
+  if ('pending' in patch) save(K.pending, state.pending);
+  if ('deleted' in patch) save(K.deleted, state.deleted);
+  if ('sync' in patch) save(K.sync, state.sync);
+  if ('units' in patch) save(K.units, state.units);
+  if ('fst7' in patch) save(K.fst7, state.fst7);
+  listeners.forEach((l) => l());
+}
+
+export function useStore<T>(select: (s: State) => T): T {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => select(state),
+  );
+}
+
+/* ---------- Consultas ---------- */
+
+export const historyOf = (sessions: Record<string, Session>, exerciseId: string, includeFst7 = false) =>
+  Object.values(sessions)
+    .filter((s) => s.exerciseId === exerciseId && (includeFst7 || !s.fst7))
+    .sort((a, b) => (a.date === b.date ? b.ts - a.ts : b.date.localeCompare(a.date)));
+
+export const firstDate = (sessions: Record<string, Session>) =>
+  Object.values(sessions).reduce<string | null>((min, s) => (!min || s.date < min ? s.date : min), null);
+
+/* ---------- Mutaciones ---------- */
+
+export function saveSession(s: Session) {
+  set({
+    sessions: { ...state.sessions, [s.id]: s },
+    pending: [...new Set([...state.pending, s.id])],
+    deleted: state.deleted.filter((id) => id !== s.id),
+  });
+  void flush();
+}
+
+export function deleteSession(id: string) {
+  const { [id]: _removed, ...rest } = state.sessions;
+  set({
+    sessions: rest,
+    pending: state.pending.filter((p) => p !== id),
+    deleted: [...new Set([...state.deleted, id])],
+  });
+  void flush();
+}
+
+export const setUnit = (exerciseId: string, unit: Unit) => set({ units: { ...state.units, [exerciseId]: unit } });
+export const setFst7 = (exerciseId: string, on: boolean) => set({ fst7: { ...state.fst7, [exerciseId]: on } });
+
+export function setSyncConfig(cfg: SyncConfig | null) {
+  set({ sync: cfg, status: cfg ? 'idle' : 'off', error: null });
+  if (cfg) {
+    // Al conectar por primera vez, todo lo local se marca pendiente para subirlo.
+    set({ pending: [...new Set([...state.pending, ...Object.keys(state.sessions)])] });
+    void pull();
+  }
+}
+
+/* ---------- Sincronización con Apps Script ---------- */
+
+async function call(body: object) {
+  const cfg = state.sync!;
+  // text/plain evita el preflight CORS que Apps Script no responde.
+  const res = await fetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ token: cfg.token, ...body }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Error del servidor');
+  return json;
+}
+
+let flushing: Promise<void> | null = null;
+
+export function flush(): Promise<void> {
+  if (!state.sync) return Promise.resolve();
+  if (flushing) return flushing;
+  if (!state.pending.length && !state.deleted.length) return Promise.resolve();
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    set({ status: 'pending' });
+    return Promise.resolve();
+  }
+  flushing = (async () => {
+    const ids = [...state.pending];
+    const del = [...state.deleted];
+    set({ status: 'syncing', error: null });
+    try {
+      const sessions = ids.map((id) => state.sessions[id]).filter(Boolean).map(withName);
+      const sentTs = new Map(sessions.map((s) => [s.id, s.ts]));
+      await call({ action: 'upsert', sessions, deleted: del });
+      set({
+        // Si una sesión se editó mientras se enviaba, sigue pendiente.
+        pending: state.pending.filter((id) => !sentTs.has(id) || state.sessions[id]?.ts !== sentTs.get(id)),
+        deleted: state.deleted.filter((id) => !del.includes(id)),
+        lastSync: Date.now(),
+      });
+      set({ status: state.pending.length || state.deleted.length ? 'pending' : 'idle' });
+    } catch (e) {
+      set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      flushing = null;
+    }
+  })();
+  return flushing;
+}
+
+const withName = (s: Session) => ({ ...s, exerciseName: exerciseById(s.exerciseId)?.name ?? s.exerciseId });
+
+/** Descarga el historial de la Sheet y lo combina con lo local (lo pendiente gana). */
+export async function pull() {
+  if (!state.sync) return;
+  set({ status: 'syncing', error: null });
+  try {
+    const json = await call({ action: 'list' });
+    const remote: Session[] = json.sessions ?? [];
+    const merged: Record<string, Session> = {};
+    for (const s of remote) if (!state.deleted.includes(s.id)) merged[s.id] = s;
+    for (const id of state.pending) if (state.sessions[id]) merged[id] = state.sessions[id];
+    set({ sessions: merged, lastSync: Date.now(), status: 'idle' });
+    await flush();
+  } catch (e) {
+    set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => void flush());
+  if (state.sync) void pull();
+}
