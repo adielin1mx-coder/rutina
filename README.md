@@ -28,7 +28,7 @@ App personal de entrenamiento: rutina Upper/Lower + PPL de 5 días, registro de 
 
 1. Crea una Google Sheet en tu Drive.
 2. Entra a **Extensiones › Apps Script** y pega el contenido de [`apps-script/Code.gs`](apps-script/Code.gs).
-3. En **Configuración del proyecto › Propiedades del script**, agrega `TOKEN` con una frase secreta.
+3. En **Configuración del proyecto** (engrane), hasta abajo en **Propiedades de las secuencias de comandos**, pulsa **Agregar propiedad**: nombre `TOKEN`, valor una frase secreta, y **Guardar**.
 4. En **Implementar › Nueva implementación › Aplicación web**, elige *Ejecutar como: Yo* y *Acceso: Cualquier persona*.
 5. Copia la URL que termina en `/exec`. En la app, ve a **Ajustes**, pega la URL y el token y pulsa **Conectar**.
 

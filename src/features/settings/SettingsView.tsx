@@ -69,7 +69,7 @@ export function SettingsView() {
         <ol className="list-decimal space-y-1 pl-5 text-[14px] text-foreground/80">
           <li>Crea una Google Sheet en tu Drive.</li>
           <li>Extensiones › Apps Script › pega el contenido de <code className="text-neon">apps-script/Code.gs</code> del repositorio.</li>
-          <li>Configuración del proyecto › Propiedades del script › agrega <code className="text-neon">TOKEN</code> con una frase secreta.</li>
+          <li>Configuración del proyecto (engrane) › hasta abajo, “Propiedades de las secuencias de comandos” › Agregar propiedad: nombre <code className="text-neon">TOKEN</code>, valor una frase secreta › Guardar.</li>
           <li>Implementar › Nueva implementación › Aplicación web · Ejecutar como: Yo · Acceso: Cualquier persona.</li>
           <li>Copia la URL que termina en <code>/exec</code> y pégala aquí junto con tu TOKEN.</li>
         </ol>

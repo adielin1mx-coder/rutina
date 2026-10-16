@@ -4,7 +4,7 @@
  * Instalación (una sola vez):
  *  1. Crea una Google Sheet en tu Drive (p. ej. "Rutina · Registro").
  *  2. Extensiones › Apps Script. Borra lo que haya y pega este archivo.
- *  3. Configuración del proyecto (engrane) › Propiedades del script › Agregar:
+ *  3. Configuración del proyecto (engrane) › Propiedades de las secuencias de comandos › Agregar propiedad:
  *       TOKEN = una frase secreta larga (la misma que pondrás en la app).
  *  4. Implementar › Nueva implementación › Tipo: Aplicación web.
  *       Ejecutar como: Yo · Quién tiene acceso: Cualquier persona.
