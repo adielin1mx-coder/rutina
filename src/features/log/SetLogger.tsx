@@ -7,10 +7,11 @@ import { Switch } from '@/components/ui/switch';
 import type { Exercise } from '@/data/rutina';
 import { fst7Allowed, type Block } from '@/hooks/useBlock';
 import { isoDate, shortDate } from '@/lib/date';
-import { advise, bestE1rm, FST7_REPS, FST7_SETS, fmtWeight, type SetEntry, type Unit } from '@/lib/progression';
+import { advise, bestE1rm, FST7_REPS, FST7_SETS, fmtWeight, weightTrend, type SetEntry, type Unit } from '@/lib/progression';
 import { deleteSession, historyOf, saveSession, setFst7, setUnit, useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { AdviceBox } from './AdviceBadge';
+import { CurrentWeight } from './CurrentWeight';
 import { RestTimer } from './RestTimer';
 
 type Row = { w: string; reps: string; rir: string };
@@ -36,6 +37,7 @@ function LoggerBody({ ex, block, today, onClose }: { ex: Exercise; block: Block;
   const history = useMemo(() => historyOf(sessions, ex.id), [sessions, ex.id]);
   const allHistory = useMemo(() => historyOf(sessions, ex.id, true), [sessions, ex.id]);
   const advice = advise(ex, history, block);
+  const trend = weightTrend(history);
   const unit: Unit = unitPref ?? history[0]?.unit ?? 'kg';
   const date = isoDate(today);
   const existing = allHistory.find((s) => s.date === date && s.fst7 === fst7);
@@ -101,6 +103,7 @@ function LoggerBody({ ex, block, today, onClose }: { ex: Exercise; block: Block;
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pt-4 pb-5">
+        {!fst7 && trend && <CurrentWeight trend={trend} reps={history[0].sets.map((s) => s.reps)} />}
         {!fst7 && <AdviceBox advice={advice} />}
 
         <div className="flex flex-wrap items-center justify-between gap-3">

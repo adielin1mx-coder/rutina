@@ -32,6 +32,8 @@ App personal de entrenamiento: rutina Upper/Lower + PPL de 5 días, registro de 
 4. En **Implementar › Nueva implementación › Aplicación web**, elige *Ejecutar como: Yo* y *Acceso: Cualquier persona*.
 5. Copia la URL que termina en `/exec`. En la app, ve a **Ajustes**, pega la URL y el token y pulsa **Conectar**.
 
+**Al actualizar `Code.gs`:** pega el código nuevo, guarda y ve a **Implementar › Gestionar implementaciones › (lápiz) Editar › Versión: Nueva versión › Implementar**. Sin una versión nueva, la URL `/exec` sigue ejecutando el código anterior (la app avisa en Ajustes si detecta un script desactualizado).
+
 El script guarda las series en la hoja "Registro" y las comidas en la hoja "Comidas". La URL y el token se guardan solo en tu navegador; no están en este repositorio. Hay que conectarlos una vez en cada dispositivo.
 
 ## Desarrollo

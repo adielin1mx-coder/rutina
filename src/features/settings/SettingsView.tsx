@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Download, ExternalLink, Link2Off, RefreshCw, RotateCcw, Upload } from 'lucide-react';
+import { AlertTriangle, Check, Download, ExternalLink, Link2Off, RefreshCw, RotateCcw, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { importMeals, pull, saveSession, setSyncConfig, useStore } from '@/lib/store';
 import { Switch } from '@/components/ui/switch';
@@ -11,6 +11,7 @@ export function SettingsView() {
   const status = useStore((s) => s.status);
   const error = useStore((s) => s.error);
   const lastSync = useStore((s) => s.lastSync);
+  const outdated = useStore((s) => s.serverOutdated);
   const sessions = useStore((s) => s.sessions);
   const meals = useStore((s) => s.meals);
   const [url, setUrl] = useState(sync?.url ?? '');
@@ -66,12 +67,23 @@ export function SettingsView() {
 
       <section className="grain space-y-4 rounded-2xl border bg-surface p-5">
         <h2 className="font-display text-3xl font-black uppercase">Google Sheet</h2>
+        {sync && outdated && (
+          <div className="flex gap-3 rounded-xl border border-warn/40 bg-warn/10 p-3 text-[14px]">
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warn" />
+            <p>
+              <b>Tu Apps Script está desactualizado.</b> Pega el nuevo <code className="text-neon">Code.gs</code>, guarda y ve a Implementar › Gestionar
+              implementaciones › lápiz (Editar) › Versión: <b>Nueva versión</b> › Implementar. La URL no cambia. Mientras tanto, tus comidas se guardan en este
+              dispositivo y se suben al actualizar.
+            </p>
+          </div>
+        )}
         <ol className="list-decimal space-y-1 pl-5 text-[14px] text-foreground/80">
           <li>Crea una Google Sheet en tu Drive.</li>
           <li>Extensiones › Apps Script › pega el contenido de <code className="text-neon">apps-script/Code.gs</code> del repositorio.</li>
           <li>Configuración del proyecto (engrane) › hasta abajo, “Propiedades de las secuencias de comandos” › Agregar propiedad: nombre <code className="text-neon">TOKEN</code>, valor una frase secreta › Guardar.</li>
           <li>Implementar › Nueva implementación › Aplicación web · Ejecutar como: Yo · Acceso: Cualquier persona.</li>
           <li>Copia la URL que termina en <code>/exec</code> y pégala aquí junto con tu TOKEN.</li>
+          <li>Cada vez que cambie Code.gs: pégalo de nuevo y en Implementar › Gestionar implementaciones › Editar elige “Nueva versión”.</li>
         </ol>
         <a
           href="https://github.com/adielin1mx-coder/rutina/blob/main/apps-script/Code.gs"

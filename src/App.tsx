@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Toaster } from '@/components/ui/sonner';
 import { exerciseById } from '@/data/catalog';
@@ -12,7 +12,7 @@ import { TodayView } from '@/features/today/TodayView';
 import { MealsView } from '@/features/meals/MealsView';
 import { dayFor } from '@/data/schedule';
 import { isoDate } from '@/lib/date';
-import { useStore } from '@/lib/store';
+import { startSync, useStore } from '@/lib/store';
 import { shouldWelcome, WelcomeSplash } from '@/features/welcome/WelcomeSplash';
 import { useBlock } from '@/hooks/useBlock';
 import { useToday } from '@/hooks/useToday';
@@ -67,6 +67,10 @@ export default function App() {
 
   const [welcome, setWelcome] = useState(WELCOME);
   const endWelcome = useCallback(() => setWelcome(false), []);
+  // La primera sincronización espera a que termine la bienvenida para no competir con su animación.
+  useEffect(() => {
+    if (!welcome) startSync();
+  }, [welcome]);
 
   // Avance de la sesión de hoy para el anillo del dock.
   const sessions = useStore((s) => s.sessions);

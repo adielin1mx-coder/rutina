@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronDown, Flame, Lightbulb, NotebookPen, X } from 'lucide-react';
 import { NumberTicker } from '@/components/ui/number-ticker';
+import { Heatmap, type HeatCell } from '@/components/Heatmap';
+import { isoDate } from '@/lib/date';
+import { loggedByDate, trainingCell } from '@/lib/heatmap';
 import { DAYS, type Exercise } from '@/data/rutina';
 import { exerciseById } from '@/data/catalog';
 import { recsFor } from '@/data/recomendaciones';
@@ -9,10 +12,11 @@ import { useReadyCount } from '@/hooks/useReadyCount';
 import { recStats, type RecMark } from '@/lib/adherence';
 import { WEEK, WEEK_ORDER } from '@/data/schedule';
 import type { Block } from '@/hooks/useBlock';
-import { advise, fmtWeight, workingWeight } from '@/lib/progression';
+import { advise, weightTrend } from '@/lib/progression';
 import { firstDate, historyOf, useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { AdviceBadge } from './AdviceBadge';
+import { CurrentWeight } from './CurrentWeight';
 import { HistoryChart } from './HistoryChart';
 import { useLogger } from './logger-context';
 import { BlockBanner } from '@/features/today/TodayView';
@@ -30,6 +34,18 @@ export function ProgressView({ block, today }: { block: Block; today: Date }) {
     return { sessions: all.length, days: new Set(all.map((s) => s.date)).size, ready };
   }, [sessions, ready]);
   const recs = useMemo(() => recStats(sessions, today, firstDate(sessions)), [sessions, today]);
+  const logged = useMemo(() => loggedByDate(sessions), [sessions]);
+  const first = useMemo(() => firstDate(sessions), [sessions]);
+  const todayIso = isoDate(today);
+  const heatCell = (date: string): HeatCell => {
+    const c = trainingCell(logged, date, todayIso, first);
+    return {
+      value: c.pct,
+      vars: typeVars(c.day ? typeOf(c.day) : null),
+      rest: !c.day,
+      hint: c.day ? `${c.day.title} · ${c.done}/${c.total} ejercicios` : c.done ? `Descanso · ${c.done} registrados` : 'Descanso',
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -68,6 +84,8 @@ export function ProgressView({ block, today }: { block: Block; today: Date }) {
       )}
 
       <BlockBanner block={block} />
+
+      <Heatmap title="Entrenamientos" today={today} cell={heatCell} legendVars={typeVars('hyp')} storageKey="rutina.heat.train" />
 
       <section className="grain rounded-2xl border border-warn/30 bg-surface p-4 sm:p-5">
         <div className="flex items-center gap-2 text-warn">
@@ -141,6 +159,7 @@ export function ProgressView({ block, today }: { block: Block; today: Date }) {
               {list.map(({ ex, rec }) => {
                 const h = historyOf(sessions, ex.id);
                 const adv = advise(ex, h, block);
+                const trend = weightTrend(h);
                 const isOpen = open === ex.id;
                 return (
                   <li key={ex.id}>
@@ -150,9 +169,13 @@ export function ProgressView({ block, today }: { block: Block; today: Date }) {
                           {rec && <span className="mr-1.5 rounded bg-rec px-1 py-px text-[10px] font-black tracking-wider text-(--rec-ink) uppercase">Rec</span>}
                           {ex.name}
                         </span>
-                        <span className="tabular text-[13px] text-muted-foreground">
-                          {h[0] ? `${fmtWeight(workingWeight(h[0]))} ${h[0].unit} × ${h[0].sets.map((s) => s.reps).join('/')}` : `${ex.sets} × ${ex.reps.join('–')} · sin registros`}
-                        </span>
+                        {trend ? (
+                          <span className="mt-1 block">
+                            <CurrentWeight compact trend={trend} reps={h[0].sets.map((s) => s.reps)} />
+                          </span>
+                        ) : (
+                          <span className="tabular text-[13px] text-muted-foreground">{`${ex.sets} × ${ex.reps.join('–')} · sin registros`}</span>
+                        )}
                       </span>
                       {h[0] && <AdviceBadge advice={adv} className="hidden sm:inline-flex" />}
                       <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />

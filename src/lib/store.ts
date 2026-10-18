@@ -54,6 +54,8 @@ interface State {
   /** Comidas marcadas por fecha (YYYY-MM-DD → nombres). */
   meals: Record<string, string[]>;
   mealsPending: string[];
+  /** El Apps Script desplegado es una versión anterior (hay que crear una nueva versión). */
+  serverOutdated: boolean;
 }
 
 let state: State = {
@@ -68,6 +70,7 @@ let state: State = {
   fst7: load(K.fst7, {}),
   meals: load(K.meals, {}),
   mealsPending: load(K.mealsPending, []),
+  serverOutdated: false,
 };
 const hasPending = () => state.pending.length > 0 || state.deleted.length > 0 || state.mealsPending.length > 0;
 state.status = state.sync ? (hasPending() ? 'pending' : 'idle') : 'off';
@@ -170,66 +173,108 @@ async function call(body: object) {
   return json;
 }
 
-let flushing: Promise<void> | null = null;
+/*
+ * Cola única: subir y descargar nunca se cruzan. Así un `list` que salió antes de un
+ * `upsert` no puede pisar con datos viejos lo que se acaba de guardar.
+ */
+let queue: Promise<void> = Promise.resolve();
+const run = (task: () => Promise<void>) => (queue = queue.then(task, task));
+
+let flushQueued: Promise<void> | null = null;
 
 export function flush(): Promise<void> {
   if (!state.sync) return Promise.resolve();
-  if (flushing) return flushing;
-  if (!hasPending()) return Promise.resolve();
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    set({ status: 'pending' });
-    return Promise.resolve();
-  }
-  flushing = (async () => {
-    const ids = [...state.pending];
-    const del = [...state.deleted];
-    const mealDates = [...state.mealsPending];
-    const sentMeals = new Map(mealDates.map((d) => [d, JSON.stringify(state.meals[d] ?? [])]));
-    set({ status: 'syncing', error: null });
-    try {
-      const sessions = ids.map((id) => state.sessions[id]).filter(Boolean).map(withName);
-      const sentTs = new Map(sessions.map((s) => [s.id, s.ts]));
-      const meals = mealDates.map((date) => ({ date, done: state.meals[date] ?? [] }));
-      await call({ action: 'upsert', sessions, deleted: del, meals });
-      set({
-        // Si una sesión se editó mientras se enviaba, sigue pendiente.
-        pending: state.pending.filter((id) => !sentTs.has(id) || state.sessions[id]?.ts !== sentTs.get(id)),
-        deleted: state.deleted.filter((id) => !del.includes(id)),
-        mealsPending: state.mealsPending.filter((d) => !sentMeals.has(d) || JSON.stringify(state.meals[d] ?? []) !== sentMeals.get(d)),
-        lastSync: Date.now(),
-      });
-      set({ status: hasPending() ? 'pending' : 'idle' });
-    } catch (e) {
-      set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
-    } finally {
-      flushing = null;
-    }
-  })();
-  return flushing;
+  if (flushQueued) return flushQueued;
+  flushQueued = run(async () => {
+    flushQueued = null;
+    await doFlush();
+  });
+  return flushQueued;
 }
 
-const withName = (s: Session) => ({ ...s, exerciseName: exerciseById(s.exerciseId)?.name ?? s.exerciseId });
-
-/** Descarga el historial de la Sheet y lo combina con lo local (lo pendiente gana). */
-export async function pull() {
-  if (!state.sync) return;
+async function doFlush() {
+  if (!state.sync || !hasPending()) return;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    set({ status: 'pending' });
+    return;
+  }
+  const ids = [...state.pending];
+  const del = [...state.deleted];
+  const mealDates = [...state.mealsPending];
+  const sentMeals = new Map(mealDates.map((d) => [d, JSON.stringify(state.meals[d] ?? [])]));
   set({ status: 'syncing', error: null });
   try {
-    const json = await call({ action: 'list' });
-    const remote: Session[] = json.sessions ?? [];
-    const merged: Record<string, Session> = {};
-    for (const s of remote) if (!state.deleted.includes(s.id)) merged[s.id] = s;
-    for (const id of state.pending) if (state.sessions[id]) merged[id] = state.sessions[id];
-    const meals: Record<string, string[]> = { ...(json.meals ?? {}) };
-    for (const d of state.mealsPending) if (state.meals[d]) meals[d] = state.meals[d];
-    set({ sessions: merged, meals, lastSync: Date.now(), status: 'idle' });
-    await flush();
+    const sessions = ids.map((id) => state.sessions[id]).filter(Boolean).map(withName);
+    const sentTs = new Map(sessions.map((s) => [s.id, s.ts]));
+    const meals = mealDates.map((date) => ({ date, done: state.meals[date] ?? [] }));
+    const json = await call({ action: 'upsert', sessions, deleted: del, meals });
+    // Un script viejo ignora las comidas pero responde ok: entonces siguen pendientes.
+    const mealsOk = json.mealsSaved !== undefined;
+    set({
+      // Si una sesión se editó mientras se enviaba, sigue pendiente.
+      pending: state.pending.filter((id) => !sentTs.has(id) || state.sessions[id]?.ts !== sentTs.get(id)),
+      deleted: state.deleted.filter((id) => !del.includes(id)),
+      mealsPending: mealsOk
+        ? state.mealsPending.filter((d) => !sentMeals.has(d) || JSON.stringify(state.meals[d] ?? []) !== sentMeals.get(d))
+        : state.mealsPending,
+      serverOutdated: !json.version,
+      lastSync: Date.now(),
+    });
+    set({ status: !mealsOk && mealDates.length ? 'error' : hasPending() ? 'pending' : 'idle', error: !mealsOk && mealDates.length ? OUTDATED : null });
   } catch (e) {
     set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
   }
 }
 
+const OUTDATED = 'El Apps Script está desactualizado: las comidas no se guardan en la hoja.';
+
+const withName = (s: Session) => ({ ...s, exerciseName: exerciseById(s.exerciseId)?.name ?? s.exerciseId });
+
+/** Descarga el historial de la Sheet y lo combina con lo local (lo pendiente gana). */
+export function pull(): Promise<void> {
+  if (!state.sync) return Promise.resolve();
+  return run(async () => {
+    if (!state.sync) return;
+    set({ status: 'syncing', error: null });
+    try {
+      const json = await call({ action: 'list' });
+      const remote: Session[] = json.sessions ?? [];
+      const merged: Record<string, Session> = {};
+      for (const s of remote) if (!state.deleted.includes(s.id)) merged[s.id] = s;
+      for (const id of state.pending) if (state.sessions[id]) merged[id] = state.sessions[id];
+
+      let meals = state.meals;
+      let mealsPending = state.mealsPending;
+      if (json.meals) {
+        const remoteMeals: Record<string, string[]> = json.meals;
+        meals = { ...remoteMeals };
+        const missing: string[] = [];
+        for (const [d, list] of Object.entries(state.meals)) {
+          if (state.mealsPending.includes(d)) meals[d] = list;
+          else if (!(d in remoteMeals) && list.length) {
+            // La hoja nunca lo recibió (p. ej. con un script viejo): se conserva y se vuelve a subir.
+            meals[d] = list;
+            missing.push(d);
+          }
+        }
+        mealsPending = [...new Set([...state.mealsPending, ...missing])];
+      }
+      set({ sessions: merged, meals, mealsPending, serverOutdated: !json.version || !json.meals, lastSync: Date.now(), status: 'idle' });
+      void flush();
+    } catch (e) {
+      set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+}
+
+/** Primera descarga al abrir la app (se llama cuando termina la bienvenida para no trabar la animación). */
+let started = false;
+export function startSync() {
+  if (started) return;
+  started = true;
+  if (state.sync) void pull();
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => void flush());
-  if (state.sync) void pull();
 }

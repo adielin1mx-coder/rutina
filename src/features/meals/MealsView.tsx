@@ -4,14 +4,15 @@ import { Check, Flame, Pencil, Plus, Trash2, Utensils } from 'lucide-react';
 import { toast } from 'sonner';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { ProgressRing } from '@/components/ProgressRing';
+import { Heatmap } from '@/components/Heatmap';
 import { prefersReducedMotion } from '@/hooks/useAnime';
-import { mealStats } from '@/lib/adherence';
+import { mealsDone, mealStats } from '@/lib/adherence';
 import { isoDate, parseIso } from '@/lib/date';
 import { toggleMeal, useStore } from '@/lib/store';
 import { DEFAULT_MEALS, setPrefs, usePrefs } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-const DOW = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+const OK_VARS = { '--c': 'var(--ok)', '--c-ink': 'var(--background)' } as React.CSSProperties;
 
 /** Registro diario de comidas: solo checks para contar cuántas hiciste. */
 export function MealsView({ today }: { today: Date }) {
@@ -23,7 +24,8 @@ export function MealsView({ today }: { today: Date }) {
 
   const checked = new Set(meals[date] ?? []);
   const n = names.filter((m) => checked.has(m)).length;
-  const isToday = date === isoDate(today);
+  const todayIso = isoDate(today);
+  const isToday = date === todayIso;
   const label = isToday ? 'Hoy' : parseIso(date).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric' });
 
   return (
@@ -33,38 +35,19 @@ export function MealsView({ today }: { today: Date }) {
         <p className="mt-3 max-w-[60ch] text-[15.5px] text-muted-foreground">Marca cada comida que hagas en el día. Solo cuenta cuántas llevas.</p>
       </header>
 
-      {/* Últimos 7 días: elegir día y ver su avance */}
-      <div className="grid grid-cols-7 gap-1.5">
-        {stats.last7.map((d) => {
-          const sel = d.date === date;
-          const full = d.n >= stats.goal;
-          return (
-            <button
-              key={d.date}
-              onClick={() => setDate(d.date)}
-              aria-pressed={sel}
-              className={cn(
-                'flex flex-col items-center gap-1 rounded-xl border py-2 transition-colors',
-                sel ? 'border-ok bg-ok/10' : 'bg-surface',
-              )}
-            >
-              <span className={cn('font-display text-[20px] leading-none font-black', sel ? 'text-ok' : 'text-muted-foreground')}>
-                {DOW[parseIso(d.date).getDay()]}
-              </span>
-              <span className="text-[11px] text-muted-foreground">{parseIso(d.date).getDate()}</span>
-              <span className="relative h-8 w-1.5 overflow-hidden rounded-full bg-foreground/10">
-                <span
-                  className={cn('absolute inset-x-0 bottom-0 rounded-full transition-all', full ? 'bg-ok shadow-[0_0_8px_var(--ok)]' : 'bg-ok/60')}
-                  style={{ height: `${(d.n / stats.goal) * 100}%` }}
-                />
-              </span>
-              <span className="tabular text-[10.5px] font-semibold">
-                {d.n}/{stats.goal}
-              </span>
-            </button>
-          );
+      <Heatmap
+        title="Historial"
+        today={today}
+        selected={date}
+        onSelect={(d) => d <= todayIso && setDate(d)}
+        cell={(d) => ({
+          value: d > todayIso ? null : mealsDone(meals, names, d) / stats.goal,
+          vars: OK_VARS,
+          hint: d > todayIso ? 'Todavía no llega' : `${mealsDone(meals, names, d)}/${stats.goal} comidas`,
         })}
-      </div>
+        legendVars={OK_VARS}
+        storageKey="rutina.heat.meals"
+      />
 
       <section className="grain flex items-center gap-5 rounded-3xl border bg-surface p-5">
         <ProgressRing value={n / stats.goal} size={116} stroke={10} color="var(--ok)">

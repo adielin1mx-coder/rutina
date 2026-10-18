@@ -4,7 +4,8 @@ import { CheckCircle2, ChevronDown, CircleDashed, Flame, Lightbulb, NotebookPen 
 import type { Exercise } from '@/data/rutina';
 import { useLogger } from '@/features/log/logger-context';
 import { AdviceBadge } from '@/features/log/AdviceBadge';
-import { advise, FST7_REPS, FST7_SETS, fmtWeight, workingWeight } from '@/lib/progression';
+import { CurrentWeight } from '@/features/log/CurrentWeight';
+import { advise, FST7_REPS, FST7_SETS, weightTrend } from '@/lib/progression';
 import { historyOf, useStore } from '@/lib/store';
 import { fst7Allowed, type Block } from '@/hooks/useBlock';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ export function ExerciseCard({ ex, index, block, why, done }: { ex: Exercise; in
   const history = historyOf(sessions, ex.id);
   const advice = advise(ex, history, block);
   const last = history[0];
+  const trend = weightTrend(history);
   const recommendedFst7 = block.fst7.some((f) => f.id === ex.id);
 
   return (
@@ -84,6 +86,12 @@ export function ExerciseCard({ ex, index, block, why, done }: { ex: Exercise; in
           </p>
         )}
 
+        {trend && (
+          <div className="col-start-2 mt-3 sm:col-span-2">
+            <CurrentWeight trend={trend} reps={last.sets.map((s) => s.reps)} color={extra ? 'var(--rec)' : 'var(--neon)'} />
+          </div>
+        )}
+
         <div className="col-start-2 mt-4 flex flex-wrap items-center gap-2 sm:col-span-2">
           <button
             onClick={() => logger.open(ex)}
@@ -98,11 +106,6 @@ export function ExerciseCard({ ex, index, block, why, done }: { ex: Exercise; in
             <AdviceBadge advice={advice} />
           ) : (
             <span className="text-[13px] text-muted-foreground">Sin registros todavía</span>
-          )}
-          {last && (
-            <span className="tabular text-[13px] text-muted-foreground">
-              Última: {fmtWeight(workingWeight(last))} {last.unit} × {last.sets.map((s) => s.reps).join('/')}
-            </span>
           )}
         </div>
 

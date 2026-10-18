@@ -170,4 +170,39 @@ export function advise(ex: Exercise, history: Session[], block?: BlockInfo): Adv
   };
 }
 
+export interface WeightTrend {
+  current: number;
+  unit: Unit;
+  /** Peso de la primera sesión registrada (misma unidad). */
+  start: number;
+  /** Cambio desde la primera sesión. */
+  delta: number;
+  /** Cambio respecto a la sesión anterior. */
+  prevDelta: number;
+  sessions: number;
+  /** Pesos de trabajo de las últimas sesiones, de la más antigua a la más reciente. */
+  points: number[];
+  date: string;
+}
+
+/** Peso que cargas ahora y cómo ha cambiado. `history` va de la más reciente a la más antigua. */
+export function weightTrend(history: Session[], span = 8): WeightTrend | null {
+  const last = history[0];
+  if (!last || last.sets.length === 0) return null;
+  const same = history.filter((s) => s.unit === last.unit && s.sets.length > 0);
+  const weights = same.map(workingWeight);
+  const current = weights[0];
+  const start = weights.at(-1)!;
+  return {
+    current,
+    unit: last.unit,
+    start,
+    delta: current - start,
+    prevDelta: weights.length > 1 ? current - weights[1] : 0,
+    sessions: same.length,
+    points: weights.slice(0, span).reverse(),
+    date: last.date,
+  };
+}
+
 export { fmt as fmtWeight };

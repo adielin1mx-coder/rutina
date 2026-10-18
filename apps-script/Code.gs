@@ -11,11 +11,16 @@
  *  5. Autoriza los permisos y copia la URL que termina en /exec.
  *  6. En la app: Ajustes › pega la URL y el TOKEN.
  *
+ * Al actualizar este archivo: pega el nuevo código, guarda y ve a
+ *   Implementar › Gestionar implementaciones › (lápiz) Editar › Versión: Nueva versión › Implementar.
+ * Si no creas una versión nueva, la URL /exec sigue ejecutando el código anterior.
+ *
  * Hoja "Registro": cada fila es una serie. Hoja "Comidas": una fila por día con las comidas marcadas.
  * Puedes ver, filtrar o graficar la hoja libremente;
  * no cambies el orden de las columnas.
  */
 
+var VERSION = 2;
 var SHEET = 'Registro';
 var HEADERS = ['sessionId', 'fecha', 'ejercicioId', 'ejercicio', 'unidad', 'fst7', 'serie', 'peso', 'reps', 'rir', 'ts'];
 
@@ -27,14 +32,15 @@ function doPost(e) {
     var token = PropertiesService.getScriptProperties().getProperty('TOKEN');
     if (!token || body.token !== token) return json({ ok: false, error: 'Token inválido' });
 
-    if (body.action === 'list') return json({ ok: true, sessions: listSessions(), meals: listMeals() });
+    if (body.action === 'list') return json({ ok: true, version: VERSION, sessions: listSessions(), meals: listMeals() });
     if (body.action === 'upsert') {
       var sessions = body.sessions || [];
       var remove = (body.deleted || []).concat(sessions.map(function (s) { return s.id; }));
       deleteRows(remove);
       appendSessions(sessions);
-      upsertMeals(body.meals || []);
-      return json({ ok: true, saved: sessions.length });
+      var meals = body.meals || [];
+      upsertMeals(meals);
+      return json({ ok: true, version: VERSION, saved: sessions.length, mealsSaved: meals.length });
     }
     return json({ ok: false, error: 'Acción desconocida' });
   } catch (err) {
@@ -45,7 +51,13 @@ function doPost(e) {
 }
 
 function doGet() {
-  return json({ ok: true, info: 'Registro de rutina activo. Usa POST.' });
+  return json({ ok: true, version: VERSION, info: 'Registro de rutina activo. Usa POST.' });
+}
+
+/** Fecha de una celda como YYYY-MM-DD, aunque Sheets la haya convertido a Date. */
+function dateKey(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(), 'yyyy-MM-dd');
+  return String(v).trim();
 }
 
 function sheet() {
@@ -71,7 +83,9 @@ function appendSessions(sessions) {
   });
   if (!rows.length) return;
   var sh = sheet();
-  sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEADERS.length).setValues(rows);
+  var range = sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEADERS.length);
+  range.offset(0, 0, rows.length, 2).setNumberFormat('@');
+  range.setValues(rows);
 }
 
 function deleteRows(ids) {
@@ -101,7 +115,7 @@ function listSessions() {
     if (!byId[id]) {
       byId[id] = {
         id: id,
-        date: r[1] instanceof Date ? Utilities.formatDate(r[1], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[1]),
+        date: dateKey(r[1]),
         exerciseId: String(r[2]),
         unit: r[4] === 'lb' ? 'lb' : 'kg',
         fst7: r[5] === 'sí',
@@ -139,17 +153,45 @@ function mealsSheet() {
 function upsertMeals(meals) {
   if (!meals.length) return;
   var sh = mealsSheet();
+  dedupeMeals(sh);
   var last = sh.getLastRow();
-  var dates = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return String(r[0]); }) : [];
+  var dates = last >= 2 ? sh.getRange(2, 1, last - 1, 1).getValues().map(function (r) { return dateKey(r[0]); }) : [];
   meals.forEach(function (m) {
     var row = [m.date, (m.done || []).join(' · '), (m.done || []).length];
     var i = dates.indexOf(m.date);
-    if (i >= 0) sh.getRange(i + 2, 1, 1, 3).setValues([row]);
-    else {
-      sh.appendRow(row);
-      dates.push(m.date);
-    }
+    var at = i >= 0 ? i + 2 : dates.length + 2;
+    if (i < 0) dates.push(m.date);
+    var range = sh.getRange(at, 1, 1, 3);
+    range.offset(0, 0, 1, 2).setNumberFormat('@');
+    range.setValues([row]);
   });
+}
+
+/** Junta en una sola fila las fechas repetidas que dejaron versiones anteriores. */
+function dedupeMeals(sh) {
+  var last = sh.getLastRow();
+  if (last < 3) return;
+  var values = sh.getRange(2, 1, last - 1, 2).getValues();
+  var first = {};
+  var drop = [];
+  values.forEach(function (r, i) {
+    var d = dateKey(r[0]);
+    var list = String(r[1]) ? String(r[1]).split(' · ') : [];
+    if (first[d] === undefined) {
+      first[d] = { i: i, list: list };
+      return;
+    }
+    list.forEach(function (m) { if (first[d].list.indexOf(m) < 0) first[d].list.push(m); });
+    drop.push(i);
+  });
+  if (!drop.length) return;
+  Object.keys(first).forEach(function (d) {
+    var f = first[d];
+    var range = sh.getRange(f.i + 2, 1, 1, 3);
+    range.offset(0, 0, 1, 2).setNumberFormat('@');
+    range.setValues([[d, f.list.join(' · '), f.list.length]]);
+  });
+  for (var k = drop.length - 1; k >= 0; k--) sh.deleteRow(drop[k] + 2);
 }
 
 function listMeals() {
@@ -158,8 +200,11 @@ function listMeals() {
   var out = {};
   if (last < 2) return out;
   sh.getRange(2, 1, last - 1, 2).getValues().forEach(function (r) {
-    var d = r[0] instanceof Date ? Utilities.formatDate(r[0], Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(r[0]);
-    out[d] = String(r[1]) ? String(r[1]).split(' · ') : [];
+    var d = dateKey(r[0]);
+    if (!d) return;
+    var list = String(r[1]) ? String(r[1]).split(' · ') : [];
+    // Filas repetidas de una misma fecha (versiones anteriores): se unen.
+    out[d] = (out[d] || []).concat(list.filter(function (m) { return (out[d] || []).indexOf(m) < 0; }));
   });
   return out;
 }

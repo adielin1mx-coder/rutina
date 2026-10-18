@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { animate, createTimeline, stagger } from 'animejs';
+import { createTimeline, stagger } from 'animejs';
 import { fraseDelDia } from '@/data/frases';
 import { dayFor, WEEK } from '@/data/schedule';
 import { prefersReducedMotion } from '@/hooks/useAnime';
@@ -35,6 +35,7 @@ export function WelcomeSplash({ today, onDone }: { today: Date; onDone: () => vo
   const { name } = usePrefs();
   const root = useRef<HTMLDivElement>(null);
   const leaving = useRef(false);
+  const finished = useRef(false);
   const wd = today.getDay();
   const day = dayFor(wd);
   const type = day ? typeOf(day) : null;
@@ -45,13 +46,27 @@ export function WelcomeSplash({ today, onDone }: { today: Date; onDone: () => vo
     const el = root.current;
     if (!el || leaving.current) return;
     leaving.current = true;
-    if (reduced) {
-      el.style.transition = 'opacity 300ms';
+    // Salida solo con opacity/transform (compositor) y sin filtros vivos: no se traba.
+    el.querySelectorAll<HTMLElement>('.w-hi, .w-name').forEach((n) => {
+      n.style.filter = 'none';
+      n.style.willChange = 'auto';
+    });
+    el.style.pointerEvents = 'none';
+    el.style.willChange = 'opacity, transform';
+    const ms = reduced ? 300 : 500;
+    el.style.transition = `opacity ${ms}ms cubic-bezier(0.5, 0, 0.75, 0), transform ${ms}ms cubic-bezier(0.5, 0, 0.75, 0)`;
+    let done = false;
+    const end = () => {
+      if (done) return;
+      done = true;
+      onDone();
+    };
+    el.addEventListener('transitionend', (e) => e.target === el && e.propertyName === 'opacity' && end());
+    setTimeout(end, ms + 150);
+    requestAnimationFrame(() => {
       el.style.opacity = '0';
-      setTimeout(onDone, 300);
-      return;
-    }
-    animate(el, { opacity: [1, 0], translateY: ['0%', '-6%'], duration: 550, ease: 'inQuart', onComplete: onDone });
+      if (!reduced) el.style.transform = 'translate3d(0, -4%, 0)';
+    });
   }, [onDone, reduced]);
 
   useEffect(() => {
@@ -62,7 +77,17 @@ export function WelcomeSplash({ today, onDone }: { today: Date; onDone: () => vo
       return () => clearTimeout(t);
     }
     const q = (s: string) => el.querySelectorAll<HTMLElement>(s);
-    const tl = createTimeline({ onComplete: () => setTimeout(leave, 900) })
+    const tl = createTimeline({
+      onComplete: () => {
+        finished.current = true;
+        // Quita el blur de las letras ya animadas: un filtro activo en cada letra encarece cada frame.
+        q('.w-hi, .w-name').forEach((n) => {
+          n.style.filter = 'none';
+          n.style.willChange = 'auto';
+        });
+        setTimeout(leave, 900);
+      },
+    })
       .add(q('.w-hi'), { opacity: [0, 1], translateY: ['0.5em', '0em'], filter: ['blur(8px)', 'blur(0px)'], delay: stagger(28), duration: 600, ease: 'outExpo' })
       .add(
         q('.w-name'),
@@ -72,7 +97,9 @@ export function WelcomeSplash({ today, onDone }: { today: Date; onDone: () => vo
       .add(q('.w-sweep'), { scaleX: [0, 1], opacity: [1, 0.35], duration: 700, ease: 'inOutQuart' }, '-=500')
       .add(q('.w-meta'), { opacity: [0, 1], translateY: [14, 0], delay: stagger(110), duration: 600, ease: 'outCubic' }, '-=450');
     return () => {
-      tl.revert();
+      // Si ya terminó, revertir devolvería todo a opacity 0 justo antes de desmontar (parpadeo).
+      if (finished.current || leaving.current) tl.pause();
+      else tl.revert();
     };
   }, [leave, reduced]);
 
@@ -87,8 +114,15 @@ export function WelcomeSplash({ today, onDone }: { today: Date; onDone: () => vo
       style={typeVars(type)}
       className="fixed inset-0 z-[60] flex cursor-pointer flex-col justify-center overflow-hidden bg-background px-6"
     >
-      <div className="pointer-events-none absolute -top-40 -right-40 size-[28rem] rounded-full bg-(--c)/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-48 -left-40 size-[26rem] rounded-full bg-(--c)/10 blur-3xl" />
+      {/* Degradados en lugar de blur-3xl: mismo halo sin un filtro que recalcular en cada frame de la salida. */}
+      <div
+        className="pointer-events-none absolute -top-56 -right-56 size-[40rem] rounded-full"
+        style={{ background: 'radial-gradient(closest-side, color-mix(in oklab, var(--c) 15%, transparent), transparent)' }}
+      />
+      <div
+        className="pointer-events-none absolute -bottom-64 -left-56 size-[38rem] rounded-full"
+        style={{ background: 'radial-gradient(closest-side, color-mix(in oklab, var(--c) 10%, transparent), transparent)' }}
+      />
 
       <div className="relative mx-auto w-full max-w-3xl">
         <p className="font-display text-[clamp(40px,11vw,76px)] leading-none font-black text-foreground/80 uppercase">
